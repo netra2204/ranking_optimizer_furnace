@@ -103,6 +103,25 @@ def extract_limit_macros(df_param: pd.DataFrame):
 
     logger.info("Limit macros extracted – %d parameters", len(df_ropt))
 
+    # ── New: _limit filter + Transpose (12) – push all _limit cols from FS row ──
+    # Mirrors: Select Attributes regex (.+)_limit → Transpose → MACROS
+    df_fs = df_param[df_param["entity_name"] == "FS"] if "entity_name" in df_param.columns else pd.DataFrame()
+    if df_fs.empty:
+        logger.warning("No FS row found – skipping _limit extraction.")
+        return
+
+    fs_row = df_fs.iloc[0]
+    limit_cols = [col for col in fs_row.index if col.endswith("_limit")]
+
+    for col in limit_cols:
+        val = fs_row[col]
+        try:
+            MACROS[col] = float(val)
+        except (TypeError, ValueError):
+            MACROS[col] = val
+        logger.debug("MACRO[%s] = %s  (from FS _limit)", col, MACROS[col])
+
+    logger.info("_limit macros extracted – %d _limit params pushed to MACROS", len(limit_cols))
 
 # ---------------------------------------------------------------------------
 # Step 2 – Compute margin flags
@@ -130,6 +149,22 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
 
     # Margin in Steam – always 0 per formula
     df["Margin_in_Steam"] = 0
+
+    pass_cols = [
+    "pass1_mixed_feed_flow_controller_opening",
+    "pass2_mixed_feed_flow_controller_opening",
+    "pass3_mixed_feed_flow_controller_opening",
+    "pass4_mixed_feed_flow_controller_opening",
+    "pass5_mixed_feed_flow_controller_opening",
+    "pass6_mixed_feed_flow_controller_opening",
+    "pass7_mixed_feed_flow_controller_opening",
+    "pass8_mixed_feed_flow_controller_opening",
+    ]
+    feed_limit = macro("margin_value_feed_limit")
+    df["Margin_in_Feed"] = np.where(
+        np.all([col(p) < feed_limit for p in pass_cols], axis=0),
+        1, 0
+    )
 
     # Margin in Damper
     df["Margin_in_Damper"] = np.where(
@@ -169,6 +204,12 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
         1, 0
     )
 
+    lower_limit = macro("margin_in_feed_lower_check_limit")
+    df["Margin_in_Feed_lower_check"] = np.where(
+        np.all([col(p) < lower_limit for p in pass_cols], axis=0),
+        1, 0
+    )
+
     # NOx emission
     df["nox_margin"] = np.where(
         col("net_nox_emission") >= macro("nox_emission_permissible_limit"),
@@ -187,6 +228,14 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
         col("shc_ratio_calculated") > macro("shc_margin_limit"),
         1, 0
     )
+
+    margin_cols = [
+    "Margin_in_FG", "Margin_in_Steam", "Margin_in_Feed", "Margin_in_Damper",
+    "Quench_OD_Gas_temp_margin", "CGC_suction_pressure_margin",
+    "C2_splitter_dp_margin", "C2_splitter_btm_c2h4_mol_percent_margin",
+    "C2_splitter_reflux_pump_suction_temp_margin", "ERC_margin", "PRC_margin"
+    ]
+    df["Total_margin"] = sum(df[c] for c in margin_cols if c in df.columns)
 
     logger.info("Margin columns computed.")
     return df
@@ -248,6 +297,7 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
     if "overall_conversion" in df.columns:
         rename_map["overall_conversion"] = "Overall_conversion"
     df = df.rename(columns=rename_map)
+    logger.info("Renaming done")
     return df
 
 
@@ -255,6 +305,24 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
 # Step 5 – Evaluate inferred tags (inferred_tags_4)
 # Mirrors: 'inf tag final (2)' Loop over inferred_tags_4
 # ---------------------------------------------------------------------------
+def get_optimization_status(row):
+    if pd.isna(row['overall_ranking']) or row['steam_water_deoke_status'] == 1:
+        return "No Optimization"
+    
+    if row['furnace_status'] == 1 and row['cracking_cycle_runlength_calculated'] > 1:
+        if 1 < row['cracking_cycle_runlength_calculated'] <= 2:
+            return "SOR"
+        if row['days_remaining'] < 2 or row['max_coke_thickness'] >= _m("max_coke_thickness_limit"):
+            return "EOR"
+        if (row['percent_above_threshold'] < -100 or
+                row['Margin_in_Feed'] + row['Margin_in_Damper'] + row['Margin_in_FG'] < 3):
+            if row['Margin_in_Damper'] == 1 and row['Margin_in_FG'] == 1:
+                return "Semi Good"
+            return "Bad"
+        return "Good"
+    
+    return "No cracking"
+
 def evaluate_inferred_tags(df: pd.DataFrame, tag_store_name: str = "inferred_tags_4") -> pd.DataFrame:
     """
     For each (Inferred_tag, Inferred_tag_formula) row, evaluate the formula
@@ -266,6 +334,9 @@ def evaluate_inferred_tags(df: pd.DataFrame, tag_store_name: str = "inferred_tag
         return df
 
     df = df.copy()
+    FUNCTION_FORMULA_MAP = {
+        "get_optimization_status": get_optimization_status,
+    }
     for _, tag_row in df_tags.iterrows():
         tag_name    = tag_row.get("Inferred_tag", "")
         formula_str = tag_row.get("Inferred_tag_formula", "")
@@ -273,10 +344,18 @@ def evaluate_inferred_tags(df: pd.DataFrame, tag_store_name: str = "inferred_tag
             continue
         try:
             # Allow formulas to reference df columns by name
-            df[tag_name] = df.eval(formula_str)
+            matched_fn = next(
+                (fn for key, fn in FUNCTION_FORMULA_MAP.items() if key in formula_str),
+                None
+            )
+            if matched_fn:
+                df[tag_name] = df.apply(matched_fn, axis=1)
+            else:
+                df[tag_name] = df.eval(formula_str)
         except Exception as e:
             logger.warning("Inferred tag '%s' eval failed: %s", tag_name, e)
-
+    logger.info("eval inf tag done")
+    logger.info("Furnace_condition values after calculating inf:\n%s", df[["entity_name", "Furnace_condition"]].to_string(index=False))
     return df
 
 
@@ -290,6 +369,7 @@ def add_forecasted_runlength_rank_org(df: pd.DataFrame) -> pd.DataFrame:
         df["Forecasted_runlength_rank_org"] = df["percent_above_threshold_rank"]
     elif "Forecasted_runlength_rank_org" not in df.columns:
         df["Forecasted_runlength_rank_org"] = np.nan
+    logger.info("forecasted runlength rank org done")
     return df
 
 
@@ -335,9 +415,11 @@ def apply_furnace_coupling(df: pd.DataFrame) -> pd.DataFrame:
     if "Furnace_condition" not in df.columns:
         return df
 
-    mask = (df["furnace_coupled_mode"] == 1) & (df["furnace_external_constraint"] == 0)
+    # mask = (df["furnace_coupled_mode"] == 1) & (df["furnace_external_constraint"] == 0)
+    mask = ~((df["furnace_coupled_mode"] == 1) & (df["furnace_external_constraint"] == 0))
     df.loc[mask, "Furnace_condition"] = "No Optimization"
     logger.info("Furnace coupling applied: %d furnaces set to 'No Optimization'.", mask.sum())
+    logger.info("Furnace_condition values after coupling:\n%s", df[["entity_name", "Furnace_condition"]].to_string(index=False))
     return df
 
 
@@ -356,9 +438,16 @@ def run_calculations(df: pd.DataFrame) -> pd.DataFrame:
         MACROS["count_of_no_good_fur"] = 0
         return df
 
+    df_fs = df[df["entity_name"] == "FS"] if "entity_name" in df.columns else pd.DataFrame()
+    num_cracking = float(df_fs["num_of_furnace_cracking"].iloc[0]) if not df_fs.empty and "num_of_furnace_cracking" in df_fs.columns else 0
+    min_limit    = float(df_fs["minimum_fur_for_optimization_limit"].iloc[0]) if not df_fs.empty and "minimum_fur_for_optimization_limit" in df_fs.columns else 1
+    logger.info("num cracking: %d , min limit: %d", num_cracking, min_limit)
+    df_non_biasing = df[~df["Furnace_condition"].isin(GOOD_CONDITIONS)].copy()
+    _remember("NonBiasing_furnaces", df_non_biasing)
+
     # Keep rows with a recognised condition
     df_recogn = df[df["Furnace_condition"].isin(GOOD_CONDITIONS)].copy()
-    _remember("NonBiasing_furnaces", df_recogn)
+    # _remember("NonBiasing_furnaces", df_recogn)
 
     # Good furnaces
     df_good = df_recogn[df_recogn["Furnace_condition"] == "Good"].copy()
@@ -372,11 +461,204 @@ def run_calculations(df: pd.DataFrame) -> pd.DataFrame:
     _remember("no_good_fur_data", df_no_good)
 
     MACROS["total_fur_available_for_bias"] = len(df_recogn)
+    MACROS["all_furnace_for_conversion_biasing"] = (
+        1 if _m("ROPT_all_furnace_for_conversion_biasing") == "active" else 0
+    )
+    MACROS["minimum_cracking_furnace_available_check"] = 0 if num_cracking < min_limit else 1
 
-    logger.info("Calculations: good=%d, no_good=%d",
-                MACROS["count_of_good_fur"], MACROS["count_of_no_good_fur"])
+    logger.info("Calculations: good=%d, no_good=%d, total=%d, min_crack_check=%d, all_fur_conv_bias=%d",
+                MACROS["count_of_good_fur"], MACROS["count_of_no_good_fur"],
+                MACROS["total_fur_available_for_bias"],
+                MACROS["minimum_cracking_furnace_available_check"],
+                MACROS["all_furnace_for_conversion_biasing"])
     return df_recogn
 
+def run_branch5(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Replicates Branch (5) of the Preprocess subprocess.
+    Condition: minimum_cracking_furnace_available_check == 1
+
+    If True (inner path):
+      - Fetch ethane_feed_flow_from_aramco_past_time from DB or set to 0
+      - Compute bias_skip_checks macros:
+          want_to_change_recycle_feed_flow
+          recycle_ethane_controller_margin
+          recycle_change_possible
+          biasing_condition
+          fresh_feed_quantity
+          deviation_in_aramco
+          fresh_feed_deviation_check
+          total_optimizer_run_check
+          min_fur_skip_check_bias2
+      - Compute Current_Recycle_Ethane_Feed_overall
+      - Run biasing_condition == 2 sub-checks (constraint_limit_bias2)
+      - Compute final_run_optimizer_check_init
+
+    If False (else path):
+      - Set final_run_optimizer_check_init = 0
+      - Set constraint_limit_bias2 = 99
+      - Set total_optimizer_run_check = 99
+    """
+    if int(_m("minimum_cracking_furnace_available_check", 0)) != 1:
+        MACROS["final_run_optimizer_check_init"] = 0
+        MACROS["constraint_limit_bias2"]         = 99
+        MACROS["total_optimizer_run_check"]      = 99
+        logger.info("Branch 5 ELSE: minimum_cracking_furnace_available_check != 1")
+        return df
+
+    # ── Subprocess (15): fetch ethane_feed_flow_from_aramco_past_time ────────
+    # In RMP: queries DB for prev-hour aramco flow value
+    # We read it from MACROS if already set (by past-hour logic), else default 0
+    if "ethane_feed_flow_from_aramco_past_time" not in MACROS:
+        MACROS["ethane_feed_flow_from_aramco_past_time"] = 0
+
+    # ── bias skip checks (Generate Macro (11)) ────────────────────────────────
+    fresh_feed_change   = float(_m("fresh_feed_change", 0))
+    want_recycle        = float(_m("Fur_Want_To_Change_Recycle_Feed_Flow_2", 0))
+    recycle_opening     = float(_m("recycle_ethane_flow_controller_opening", 0))
+    recycle_limit       = float(_m("recycle_ethane_flow_controller_opening_limit", 90))
+    aramco_flow         = float(_m("ethane_feed_flow_from_aramco", 0))
+    aramco_past         = float(_m("ethane_feed_flow_from_aramco_past_time", 0))
+    aramco_limit        = float(_m("ethane_feed_flow_aramco_limit", 5))
+    expected_ff         = float(_m("Fur_Expected_Fresh_Feed", 110))
+    count_good          = int(_m("count_of_good_fur", 0))
+    total_fur           = int(_m("total_fur_available_for_bias", 0))
+
+    want_to_change_recycle = (
+        1 if fresh_feed_change != 0 else want_recycle
+    )
+
+    recycle_ethane_controller_margin = (
+        1 if fresh_feed_change != 0
+        else (1 if recycle_opening < recycle_limit else 0)
+    )
+
+    recycle_change_possible = (
+        1 if (want_to_change_recycle == 1 and recycle_ethane_controller_margin == 1)
+        else 0
+    )
+
+    biasing_condition = (
+        3 if count_good == 0
+        else (1 if recycle_change_possible == 1 else 2)
+    )
+
+    fresh_feed_quantity = (
+        fresh_feed_change * abs(expected_ff - aramco_flow) / 0.6618
+    )
+
+    deviation_in_aramco = (
+        0 if aramco_past == 0
+        else aramco_flow - aramco_past
+    )
+
+    ff_dev_check_1 = (
+        0 if (fresh_feed_change == 0 and abs(deviation_in_aramco) > aramco_limit)
+        else 1
+    )
+    ff_dev_check_2 = (
+        0 if (fresh_feed_change != 0 and deviation_in_aramco < -1)
+        else 1
+    )
+    fresh_feed_deviation_check = 1 if (ff_dev_check_1 == 1 and ff_dev_check_2 == 1) else 0
+
+    total_optimizer_run_check = (
+        1 if (int(_m("minimum_cracking_furnace_available_check", 0)) == 1
+              and fresh_feed_deviation_check == 1)
+        else 0
+    )
+
+    min_fur_skip_check_bias2 = (
+        0 if (biasing_condition == 2 and total_fur == 1)
+        else 1
+    )
+
+    # Push to MACROS
+    MACROS["want_to_change_recycle_feed_flow"]   = want_to_change_recycle
+    MACROS["recycle_ethane_controller_margin"]    = recycle_ethane_controller_margin
+    MACROS["recycle_change_possible"]             = recycle_change_possible
+    MACROS["biasing_condition"]                   = biasing_condition
+    MACROS["fresh_feed_quantity"]                 = fresh_feed_quantity
+    MACROS["deviation_in_aramco"]                 = deviation_in_aramco
+    MACROS["fresh_feed_deviation_check"]          = fresh_feed_deviation_check
+    MACROS["total_optimizer_run_check"]           = total_optimizer_run_check
+    MACROS["min_fur_skip_check_bias2"]            = min_fur_skip_check_bias2
+
+    logger.info("bias_skip_checks: biasing_condition=%d, recycle_change_possible=%d, "
+                "fresh_feed_deviation_check=%d, total_optimizer_run_check=%d",
+                biasing_condition, recycle_change_possible,
+                fresh_feed_deviation_check, total_optimizer_run_check)
+
+    # ── Subprocess (18): Current_Recycle_Ethane_Feed_overall ─────────────────
+    # Filter to furnace rows (not FS) with furnace_status == 1; sum Feed_flow
+    df_fur = df[
+        (df["entity_name"] != "FS") &
+        (df["furnace_status"].astype(float) == 1)
+    ] if "furnace_status" in df.columns else df[df["entity_name"] != "FS"]
+
+    sum_feed_overall = float(df_fur["Feed_flow"].sum()) if "Feed_flow" in df_fur.columns else 0.0
+    MACROS["sum_Feed_flow_overall"] = sum_feed_overall
+
+    shc_calc = float(_m("shc_ratio_calculated", _m("shc_ratio", 0)))
+    sys_conv = float(_m("system_overall_conversion", 0))
+
+    current_recycle_overall = (
+        sum_feed_overall / (1 + shc_calc) * (100 - sys_conv) / 100
+        if (1 + shc_calc) != 0 else 0.0
+    )
+    MACROS["Current_Recycle_Ethane_Feed_overall"] = current_recycle_overall
+    logger.info("Current_Recycle_Ethane_Feed_overall=%.4f", current_recycle_overall)
+
+    # ── Branch (14): biasing_condition == 2 → constraint_limit_bias2 ─────────
+    constraint_limit_bias2 = 1   # default (else path of Branch 14)
+
+    if biasing_condition == 2:
+        df_good = _recall("good_fur_data")
+        min_conv_good = float(df_good["Overall_conversion"].min()) if not df_good.empty else 0.0
+        MACROS["min_Overall_conversion_good"] = min_conv_good
+
+        # Check if any good furnace has percent_above_threshold > 0
+        if "percent_above_threshold" in df_good.columns:
+            df_pos = df_good[df_good["percent_above_threshold"].astype(float) > 0]
+            good_fur_with_pos = 1 if len(df_pos) > 0 else 0
+        else:
+            good_fur_with_pos = 0
+        MACROS["good_fur_with_positive_per_thres_available"] = good_fur_with_pos
+
+        if good_fur_with_pos == 0:
+            # Check no-good furnaces with conversion below min good conversion
+            df_no_good = _recall("no_good_fur_data")
+            if not df_no_good.empty and "Overall_conversion" in df_no_good.columns:
+                df_no_good = df_no_good.copy()
+                df_no_good["min_Overall_conversion_no_good"] = (
+                    df_no_good["Overall_conversion"].astype(float)
+                    .apply(lambda v: 1 if v < min_conv_good else 0)
+                )
+                sum_min_conv_no_good = int(df_no_good["min_Overall_conversion_no_good"].sum())
+                MACROS["sum_min_Overall_conversion_no_good"] = sum_min_conv_no_good
+                constraint_limit_bias2 = 0 if sum_min_conv_no_good == 0 else 1
+            else:
+                constraint_limit_bias2 = 1
+        else:
+            constraint_limit_bias2 = 1
+
+    MACROS["constraint_limit_bias2"] = constraint_limit_bias2
+    logger.info("constraint_limit_bias2=%d", constraint_limit_bias2)
+
+    # ── Generate Macro (11): final_run_optimizer_check_init ──────────────────
+    final_run_optimizer_check_init = (
+        1 if (
+            total_optimizer_run_check == 1 and
+            total_fur > 0 and
+            min_fur_skip_check_bias2 == 1 and
+            constraint_limit_bias2 == 1
+        )
+        else 0
+    )
+    MACROS["final_run_optimizer_check_init"] = final_run_optimizer_check_init
+    logger.info("final_run_optimizer_check_init=%d", final_run_optimizer_check_init)
+
+    return df
 
 # ---------------------------------------------------------------------------
 # Main entry point
@@ -423,7 +705,9 @@ def run(df_param: pd.DataFrame) -> pd.DataFrame:
 
     # Step 9: Good/No-Good split + counts
     df = run_calculations(df)
-
+    # Branch 5
+    df = run_branch5(df)
+    
     STORE["df_preprocessed"] = df.copy()
     logger.info("PRE-PROCESSING complete – %d rows × %d cols",
                 len(df), len(df.columns))

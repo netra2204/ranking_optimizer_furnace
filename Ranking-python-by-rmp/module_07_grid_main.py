@@ -48,7 +48,6 @@ Outputs  (MACROS)
 
 import pandas as pd
 import numpy as np
-import itertools
 import logging
 import math
 
@@ -164,19 +163,25 @@ def run_feed_grid(df: pd.DataFrame) -> dict:
     best_sum     = 0.0
 
     if total_combos <= MAX_COMBOS:
-        for combo in itertools.product(*ranges):
-            combo = list(combo)
-            eth, total_feed = _evaluate_feed_combo(combo, n)
+        current_combo = [0.0] * n
 
-            # If fresh_feed_change == -1: need sum_del_feed >= min_target (ensure reduction)
-            if fresh_feed_change == -1 and compare_log != 0:
-                if total_feed < min_target_sum:
-                    continue
+        def _nested_search(depth):
+            nonlocal best_eth, best_combo, best_sum
+            if depth == n:
+                eth, total_feed = _evaluate_feed_combo(current_combo, n)
+                if fresh_feed_change == -1 and compare_log != 0:
+                    if total_feed < min_target_sum:
+                        return
+                if eth > best_eth:
+                    best_eth   = eth
+                    best_combo = current_combo[:]
+                    best_sum   = total_feed
+                return
+            for val in ranges[depth]:
+                current_combo[depth] = val
+                _nested_search(depth + 1)
 
-            if eth > best_eth:
-                best_eth   = eth
-                best_combo = combo
-                best_sum   = total_feed
+        _nested_search(0)
     else:
         # Greedy per-furnace optimisation when full grid is too large
         logger.warning("Total combos=%d > %d; using greedy per-furnace optimisation.",
@@ -247,12 +252,21 @@ def run_conversion_grid(df: pd.DataFrame, feed_combo: dict) -> dict:
 
     MAX_COMBOS = 50_000
     if total_combos <= MAX_COMBOS:
-        for combo in itertools.product(*ranges):
-            combo   = list(combo)
-            eth_inc = _evaluate_conversion_combo(combo, feed_combo, n)
-            if eth_inc > best_eth_conv:
-                best_eth_conv = eth_inc
-                best_combo    = combo
+        current_combo = [0.0] * n
+
+        def _nested_search_conv(depth):
+            nonlocal best_eth_conv, best_combo
+            if depth == n:
+                eth_inc = _evaluate_conversion_combo(current_combo, feed_combo, n)
+                if eth_inc > best_eth_conv:
+                    best_eth_conv = eth_inc
+                    best_combo    = current_combo[:]
+                return
+            for val in ranges[depth]:
+                current_combo[depth] = val
+                _nested_search_conv(depth + 1)
+
+        _nested_search_conv(0)
     else:
         best_combo = [r[-1] if r else 0.0 for r in ranges]
         best_eth_conv, _ = _evaluate_feed_combo(best_combo, n)

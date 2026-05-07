@@ -36,13 +36,16 @@ PIPELINE_MACROS = {
     "Optimizer_selector": 6,
     "pass_feed_min_limit": 6.5,
     "pass_step_change": 0.25,
+    "max_coke_thickness_limit":10.0,
+    "margin_value_feed_limit":87.0,
+    
 }
 
 # ---------------------------------------------------------------------------
 # DATABASE / REPOSITORY PATHS  (change to match your environment)
 # ---------------------------------------------------------------------------
 DB_CONFIG = {
-    "repository_entry": "data/join_data_12march_4pm",   # local CSV fallback path
+    "repository_entry": r"C:\Users\User\Documents\POC\Ranking-python-by-rmp\tag-in-parameter-format-preprocess-input.xlsx",   # local CSV fallback path
     "model_id": 520,
     "tag_prefix": "un.olf%",
     "output_table": "dbo.Furnace_Output",

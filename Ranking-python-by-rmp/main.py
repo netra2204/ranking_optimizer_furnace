@@ -54,7 +54,41 @@ logging.basicConfig(
 )
 logger = logging.getLogger("main")
 
+def load_store_data(
+    tag_parameter_mapping_csv: str = None,
+    ropt_extract_macro_values_csv: str = None,
+    inferred_tags_1_csv: str = None,
+    inferred_tags_2_csv: str = None,
+    inferred_tags_3_csv: str = None,
+    inferred_tags_4_csv: str = None,
+):
+    """
+    Pre-populate STORE with all DataFrames required by modules 05 onwards.
+    Call this before run_pipeline() when bypassing modules 02 and 03.
+    """
+    loaders = {
+        "tag_parameter_mapping":         tag_parameter_mapping_csv,
+        "ROPT_extract_macro_value":      ropt_extract_macro_values_csv,
+        "inferred_tags_1":               inferred_tags_1_csv,
+        "inferred_tags_2":               inferred_tags_2_csv,
+        "inferred_tags_3":               inferred_tags_3_csv,
+        "inferred_tags_4":               inferred_tags_4_csv,
+    }
 
+    for store_key, path in loaders.items():
+        if path is None:
+            # Store empty DataFrame as safe fallback
+            STORE[store_key] = pd.DataFrame()
+            logger.info("STORE['%s'] → empty (no path provided)", store_key)
+        elif path.endswith(".xlsx") or path.endswith(".xls"):
+            STORE[store_key] = pd.read_excel(path)
+            logger.info("STORE['%s'] → loaded from '%s' (%d rows)",
+                        store_key, path, len(STORE[store_key]))
+        else:
+            STORE[store_key] = pd.read_csv(path)
+            logger.info("STORE['%s'] → loaded from '%s' (%d rows)",
+                        store_key, path, len(STORE[store_key]))
+            
 # =============================================================================
 # Pipeline orchestrator
 # =============================================================================
@@ -93,36 +127,25 @@ def run_pipeline(
     df_main = module_01_inputs.run(csv_path=csv_path)
 
     # ── Step 2: INITIALIZATION ────────────────────────────────────────────────
-    df_main = module_02_initialization.run(df_main)
+    # df_main = module_02_initialization.run(df_main)
 
     # ── Step 3: PARAMETERIZATION ──────────────────────────────────────────────
-    df_param = module_03_parameterization.run(df_main)
+    # df_param = module_03_parameterization.run(df_main)
 
     # ── Step 4: PRE-PROCESSING ────────────────────────────────────────────────
+    # Bypassing initialization & parameterization — data already in wide format
+    df_param = df_main.copy()
     df_preprocessed = module_04_preprocessing.run(df_param)
 
     # ── Step 5: PAST HOUR LOGIC ───────────────────────────────────────────────
     # Checks deviation_exists; sets MACROS["deviation_exists"] = 0 or 1
-    df_preprocessed = module_05_past_hour_logic.run(
-        df_preprocessed, prev_hour_csv_path=prev_hour_csv_path
-    )
-
-    # ── Guard: minimum_cracking_furnace check ─────────────────────────────────
-    # The RapidMiner process has Branch (6) guarding the optimizer path.
-    # If no furnaces are available, we skip to output generation.
-    if MACROS.get("minimum_cracking_furnace_available_check", 0) != 1:
-        logger.warning(
-            "minimum_cracking_furnace_available_check != 1 – skipping optimizer."
-        )
-        MACROS["deviation_exists"]    = 1
-        MACROS["ranking_cause_indicator"] = -99
-        df_output = module_09_generate_output.run(df_preprocessed)
-        df_long   = module_10_output_format_check.run(df_output)
-        _log_summary(df_output, start_ts)
-        return df_output if return_wide else df_long
+    # df_preprocessed = module_05_past_hour_logic.run(
+    #     df_preprocessed, prev_hour_csv_path=prev_hour_csv_path
+    # )
 
     # ── bias_final_decider  (Generate Macro before MAIN branch) ───────────────
     # final_run_optimizer_check = deviation_exists AND final_run_optimizer_check_init
+    MACROS["deviation_exists"] = 1
     dev = int(MACROS.get("deviation_exists", 0))
     init_check = int(MACROS.get("final_run_optimizer_check_init", 1))
     MACROS["final_run_optimizer_check"] = 1 if (dev == 1 and init_check == 1) else 0
@@ -143,11 +166,55 @@ def run_pipeline(
 
     else:
         logger.info("MAIN branch: optimizer SKIPPED (no deviation / check=0).")
-        # Ensure df_post_grid exists in STORE for generate_output
-        STORE["df_post_grid"] = df_preprocessed.copy()
+
+        # Branch (114): deviation_exists == 0 → recall prev output and join
+        if int(MACROS.get("deviation_exists", 1)) == 0:
+            # Then side of Branch (114): reuse prev hour output
+            df_prev = STORE.get("prev_timestamp_ranking_output", pd.DataFrame())
+            if not df_prev.empty:
+                # Exclude bias columns from prev output
+                exclude_cols = ["change_in_furnace", "cit_bias", "conversion_bias",
+                                "cot_bias", "feed_bias", "heat_bias", "shc_bias",
+                                "total_optimizer_run_check"]
+                df_prev = df_prev.drop(columns=[c for c in exclude_cols if c in df_prev.columns], errors="ignore")
+                # Inner join on entity_name with current data
+                curr_cols = [c for c in df_preprocessed.columns if c not in df_prev.columns or c == "entity_name"]
+                df_joined = pd.merge(df_prev, df_preprocessed[curr_cols], on="entity_name", how="inner")
+                MACROS["ranking_cause_indicator"] = 99
+                df_joined["ranking_opportunity"] = 0
+                STORE["df_post_grid"] = df_joined.copy()
+                df_post_grid = df_joined.copy()
+            else:
+                STORE["df_post_grid"] = df_preprocessed.copy()
+                df_post_grid = df_preprocessed.copy()
+        else:
+            # Else side of Branch (114): deviation_exists != 0, optimizer check failed
+            # Set ranking_cause_indicator based on RMP Generate Macro (49)
+            min_fur_check      = int(MACROS.get("minimum_cracking_furnace_available_check", 0))
+            total_opt_check    = int(MACROS.get("total_optimizer_run_check", 0))
+            constraint_bias2   = int(MACROS.get("constraint_limit_bias2", 1))
+
+            MACROS["ranking_cause_indicator"] = (
+                0  if min_fur_check == 0
+                else (2  if total_opt_check == 0
+                else (7  if constraint_bias2 == 1
+                else 11))
+            )
+
+            # Set bias columns to 0 and New_ columns = current values
+            df_else = df_preprocessed.copy()
+            df_else["conversion_bias"]        = 0
+            df_else["feed_bias"]              = 0
+            df_else["New_Overall_conversion"] = df_else["Overall_conversion"] if "Overall_conversion" in df_else.columns else 0
+            df_else["New_Feed_flow"]          = df_else["Feed_flow"] if "Feed_flow" in df_else.columns else 0
+            df_else["ranking_opportunity"]    = 0
+            MACROS["biasing_condition"]       = 0
+            STORE["df_post_grid"] = df_else.copy()
+            df_post_grid = df_else.copy()
+
 
     # ── Step 9: GENERATE OUTPUT ───────────────────────────────────────────────
-    df_output = module_09_generate_output.run(df_preprocessed)
+    df_output = module_09_generate_output.run(df_post_grid)
 
     # ── Step 10: OUTPUT FORMAT CHECK ──────────────────────────────────────────
     try:
@@ -234,6 +301,13 @@ def main():
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
     try:
+        load_store_data(
+        tag_parameter_mapping_csv     = r"C:\Users\User\Documents\POC\tag-parameter-mapping (1).xlsx",
+        ropt_extract_macro_values_csv = r"C:\Users\User\Documents\POC\parameters.xlsx",
+        inferred_tags_1_csv           = r"C:\Users\User\Documents\POC\inferred_tags_1.xlsx",
+        inferred_tags_2_csv           = r"C:\Users\User\Documents\POC\inferred_tags_2.xlsx",
+        inferred_tags_3_csv           = r"C:\Users\User\Documents\POC\inferred_tags_3.xlsx",
+        inferred_tags_4_csv           = r"C:\Users\User\Documents\POC\inferred_tags_4.xlsx",)
         result = run_pipeline(
             csv_path=args.csv,
             prev_hour_csv_path=args.prev_csv,

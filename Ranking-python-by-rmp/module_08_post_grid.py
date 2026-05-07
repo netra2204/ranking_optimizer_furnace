@@ -209,6 +209,7 @@ def evaluate_inferred_tags(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     df = df.copy()
+    df['good_tubes_calculated']=250.0
     for _, tag_row in df_tags.iterrows():
         tag_name    = tag_row.get("Inferred_tag", "")
         formula_str = tag_row.get("Inferred_tag_formula", "")

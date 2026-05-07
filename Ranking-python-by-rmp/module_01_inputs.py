@@ -75,11 +75,13 @@ def load_raw_data(csv_path: str = None) -> pd.DataFrame:
 
 def _load_csv(path: str) -> pd.DataFrame:
     if path is None:
-        path = DB_CONFIG.get("repository_entry", "data/join_data.csv")
-        if not path.endswith(".csv"):
-            path = path + ".csv"
-    df = pd.read_csv(path)
-    logger.info("Data loaded from CSV '%s': %d rows, %d cols", path, len(df), len(df.columns))
+        print('db config path')
+        path = DB_CONFIG.get("repository_entry", "tag-in-parameter-format-preprocess-input.xlsx")
+    if path.endswith(".xlsx") or path.endswith(".xls"):
+        df = pd.read_excel(path)
+    else:
+        df = pd.read_csv(path)
+    logger.info("Data loaded from '%s': %d rows, %d cols", path, len(df), len(df.columns))
     return df
 
 
