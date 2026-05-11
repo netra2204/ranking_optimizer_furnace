@@ -296,6 +296,8 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
         rename_map["wet_feed_total_flow"] = "Feed_flow"
     if "overall_conversion" in df.columns:
         rename_map["overall_conversion"] = "Overall_conversion"
+    if "good _tubes_calculated" in df.columns:
+        rename_map["good _tubes_calculated"] = "good_tubes_calculated"
     df = df.rename(columns=rename_map)
     logger.info("Renaming done")
     return df
@@ -365,13 +367,34 @@ def evaluate_inferred_tags(df: pd.DataFrame, tag_store_name: str = "inferred_tag
 # ---------------------------------------------------------------------------
 def add_forecasted_runlength_rank_org(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
+
+    # Furnace_condition_code — Generate Attributes (269) formula 1
+    cond_map = {"Good": 1, "Bad": 2, "Semi Good": 3, "SOR": 4, "EOR": 5, "No Optimization": -1}
+    df["Furnace_condition_code"] = df["Furnace_condition"].map(cond_map).fillna(0).astype(int) \
+                                   if "Furnace_condition" in df.columns else 0
+
+    # Forecasted_runlength_rank_org — Generate Attributes (269) formula 2
     if "percent_above_threshold_rank" in df.columns:
         df["Forecasted_runlength_rank_org"] = df["percent_above_threshold_rank"]
     elif "Forecasted_runlength_rank_org" not in df.columns:
         df["Forecasted_runlength_rank_org"] = np.nan
-    logger.info("forecasted runlength rank org done")
-    return df
 
+    # Forecasted_runlength_rank — Generate Attributes (269) formula 3
+    def _frl_rank(row):
+        org = row.get("Forecasted_runlength_rank_org", np.nan)
+        if pd.isna(org):
+            return np.nan
+        if (float(row.get("cracking_cycle_runlength_calculated", 0)) < 2 or
+                float(row.get("days_remaining", 0)) < 2):
+            return 50
+        if float(row.get("percent_above_threshold", 0)) < 0:
+            return 100
+        return org
+
+    df["Forecasted_runlength_rank"] = df.apply(_frl_rank, axis=1)
+
+    logger.info("forecasted runlength rank org and rank done")
+    return df
 
 # ---------------------------------------------------------------------------
 # Step 7 – Determine next decoking furnace
@@ -395,6 +418,15 @@ def determine_decoking_furnace(df: pd.DataFrame):
     if "entity_name" in df_min.columns and len(df_min) > 0:
         MACROS["Fur_Next_Decoking_Furnace"] = str(df_min.iloc[0]["entity_name"])
         logger.info("Next decoking furnace: %s", MACROS["Fur_Next_Decoking_Furnace"])
+    # Generate Macro (10): map furnace name to entity numeric ID
+    fur_id_map = {
+        "F1": 3796, "F2": 3797, "F3": 3798, "F4": 3799, "F5": 3800,
+        "F6": 3801, "F7": 3802, "F8": 3803, "F9": 3804
+    }
+    MACROS["Fur_Next_Decoking_Furnace_ID"] = fur_id_map.get(
+        MACROS["Fur_Next_Decoking_Furnace"], 0
+    )
+    logger.info("Fur_Next_Decoking_Furnace_ID=%d", MACROS["Fur_Next_Decoking_Furnace_ID"])
 
 
 # ---------------------------------------------------------------------------
@@ -656,6 +688,36 @@ def run_branch5(df: pd.DataFrame) -> pd.DataFrame:
         else 0
     )
     MACROS["final_run_optimizer_check_init"] = final_run_optimizer_check_init
+    
+    # Subprocess (13)
+    # Multiply (11): keep original df intact, work on a copy
+    df_full = df.copy()
+
+    # Select Attributes (pass wise): keep only _runlength_remaining cols
+    pass_rl_cols = [c for c in df.columns if c.endswith("_runlength_remaining")]
+    if pass_rl_cols:
+        df_rl = df[pass_rl_cols].copy()
+
+        # Generate Attributes (35): min across all pass runlength_remaining
+        df_rl["min_days_pass"] = df_rl.min(axis=1)
+
+        # Generate Attributes (36): passN_feed_red_potential_on_min_days
+        for n in range(1, 9):
+            rl_col = f"pass{n}_runlength_remaining"
+            df_rl[f"pass{n}_feed_red_potential_on_min_days"] = (
+                np.where(df_rl[rl_col] == df_rl["min_days_pass"], 0, 1)
+                if rl_col in df_rl.columns else 0
+            )
+        df_rl.drop(columns=["min_days_pass"], inplace=True)
+
+        # Select Attributes (42): keep only potential_on_min_days cols
+        pot_cols = [c for c in df_rl.columns if c.endswith("potential_on_min_days")]
+        df_pot = df_rl[pot_cols].copy()
+
+        # Join (22): join back onto original full df
+        df = df_full.join(df_pot)
+        logger.info("Subprocess (13): %d passN_feed_red_potential_on_min_days cols joined.", len(pot_cols))
+
     logger.info("final_run_optimizer_check_init=%d", final_run_optimizer_check_init)
 
     return df
