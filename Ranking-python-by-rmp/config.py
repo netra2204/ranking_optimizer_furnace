@@ -6,12 +6,39 @@ Centralised configuration / macro store for the Furnace Ranking Optimisation pip
 All "macros" in RapidMiner are global key-value variables that every operator can
 read or write.  We replicate that here as a plain Python dict (MACROS) plus typed
 constant sections for the pipeline parameters that are set once at INPUTS time.
+
+Excel overrides
+---------------
+Any variable from INPUTS, PIPELINE_MACROS, or the direct MACROS entries can be
+overridden from a single Excel sheet (config_overrides.xlsx) with just two columns:
+
+    variable_name   – must exactly match the key name used in Python
+    value           – the new value (type is inferred automatically)
+
+The loader searches all three dicts automatically — no need to specify which dict
+a variable belongs to.  Variables not listed in the sheet keep their hardcoded
+defaults.  Set EXCEL_CONFIG_PATH to None to skip Excel loading entirely.
 """
 
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
-# PIPELINE INPUT MACROS  (mirror of the "INPUTS" Set-Macros operator)
+# PATH TO THE EXCEL OVERRIDE FILE
 # ---------------------------------------------------------------------------
-INPUTS = {
+# Change this to an absolute path or a path relative to this file.
+# Set to None to skip Excel loading entirely.
+EXCEL_CONFIG_PATH: str | None = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "config_overrides.xlsx",
+)
+
+# ---------------------------------------------------------------------------
+# HARDCODED DEFAULTS  (used when Excel loading is disabled or the key is absent)
+# ---------------------------------------------------------------------------
+_INPUTS_DEFAULTS = {
     "fresh_feed_change_set": 0,           # 0 = no change, -1 = force reduction
     "want_to_change_recycle_feed_flow_set": 1,
     "Fur_change_recycle_ethane_limit": 0.3,
@@ -20,11 +47,7 @@ INPUTS = {
     "pull_tables_from_db": 0,             # 0 = use local file; 1 = pull from DB
 }
 
-# ---------------------------------------------------------------------------
-# PIPELINE MACROS  (mirror of the "PIPELINE MACROS" Create-ExampleSet operator)
-# These act as global feature flags / hyperparameters.
-# ---------------------------------------------------------------------------
-PIPELINE_MACROS = {
+_PIPELINE_MACROS_DEFAULTS = {
     "split_parameter_name": "feed_type",
     "LBM_initialization_get_pi_data": "active",
     "LBM_preprocessing_inferred_tags_main": "active",
@@ -36,16 +59,121 @@ PIPELINE_MACROS = {
     "Optimizer_selector": 6,
     "pass_feed_min_limit": 6.5,
     "pass_step_change": 0.25,
-    "max_coke_thickness_limit":10.0,
-    "margin_value_feed_limit":87.0,
-    
+    "max_coke_thickness_limit": 10.0,
+    "margin_value_feed_limit": 87.0,
 }
+
+# Direct MACROS entries that make sense to override (runtime accumulators excluded).
+# The full MACROS dict is built further below; this captures only the overrideable ones.
+_MACROS_OVERRIDEABLE = {
+    "ranking_cause_indicator": 1,
+    "Max_Benefit_SPC": 1000,
+    "biasing_condition": 0,
+    "mixed_feed_margin": 0,
+    "minimum_cracking_furnace_available_check": 0,
+    "shc_ratio": 0,
+}
+
+# ---------------------------------------------------------------------------
+# EXCEL LOADER
+# ---------------------------------------------------------------------------
+
+def _coerce(value):
+    """
+    Coerce a value read from openpyxl to the most natural Python type.
+    Whole-number floats (e.g. 6.0) are returned as int.
+    """
+    if isinstance(value, float) and value == int(value):
+        return int(value)
+    return value
+
+
+def _load_excel_overrides(path: str | None) -> dict:
+    """
+    Read the single 'config_overrides' sheet from *path* and return a flat dict
+    of {variable_name: value} for every row that has a recognised key.
+
+    The loader searches _INPUTS_DEFAULTS, _PIPELINE_MACROS_DEFAULTS, and
+    _MACROS_OVERRIDEABLE to validate keys — no source_dict column needed.
+    Returns an empty dict if path is None or loading fails.
+    """
+    if path is None:
+        return {}
+
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        logger.warning("openpyxl not installed – skipping Excel config load.")
+        return {}
+
+    if not os.path.exists(path):
+        logger.warning("Excel config not found at %s – using hardcoded defaults.", path)
+        return {}
+
+    try:
+        wb = load_workbook(path, data_only=True, read_only=True)
+    except Exception as exc:
+        logger.error("Failed to open Excel config %s: %s – using defaults.", path, exc)
+        return {}
+
+    # All valid keys across all three dicts
+    all_known_keys = {
+        **_INPUTS_DEFAULTS,
+        **_PIPELINE_MACROS_DEFAULTS,
+        **_MACROS_OVERRIDEABLE,
+    }
+
+    sheet_name = wb.sheetnames[0]  # always use the first (and only) sheet
+    ws = wb[sheet_name]
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+
+    if not rows:
+        return {}
+
+    header = [str(h).strip().lower() if h is not None else "" for h in rows[0]]
+    try:
+        name_col = header.index("variable_name")
+        val_col  = header.index("value")
+    except ValueError:
+        logger.error("Excel sheet must have 'variable_name' and 'value' columns – using defaults.")
+        return {}
+
+    overrides = {}
+    for row in rows[1:]:
+        if len(row) <= max(name_col, val_col):
+            continue
+        key   = row[name_col]
+        value = row[val_col]
+        if key is None:
+            continue
+        key = str(key).strip()
+        if key not in all_known_keys:
+            logger.warning("Unknown key '%s' in Excel config – ignored.", key)
+            continue
+        if value is None:
+            logger.warning("Key '%s' has no value in Excel config – keeping default.", key)
+            continue
+        overrides[key] = _coerce(value)
+        logger.debug("Excel override: %s = %r", key, overrides[key])
+
+    return overrides
+
+
+# ---------------------------------------------------------------------------
+# APPLY EXCEL OVERRIDES TO EACH DICT
+# ---------------------------------------------------------------------------
+_overrides = _load_excel_overrides(EXCEL_CONFIG_PATH)
+
+INPUTS          = {**_INPUTS_DEFAULTS,          **{k: v for k, v in _overrides.items() if k in _INPUTS_DEFAULTS}}
+PIPELINE_MACROS = {**_PIPELINE_MACROS_DEFAULTS, **{k: v for k, v in _overrides.items() if k in _PIPELINE_MACROS_DEFAULTS}}
+_macros_overrides = {k: v for k, v in _overrides.items() if k in _MACROS_OVERRIDEABLE}
 
 # ---------------------------------------------------------------------------
 # DATABASE / REPOSITORY PATHS  (change to match your environment)
 # ---------------------------------------------------------------------------
 DB_CONFIG = {
-    "repository_entry": r"C:\Users\User\Documents\POC\Ranking-python-by-rmp\tag-in-parameter-format-preprocess-input.xlsx",   # local CSV fallback path
+    "repository_entry": r"C:\Users\User\Downloads\Charan_Coilsim\Charan_Coilsim\parameterization-ranking-data.xlsx",
     "model_id": 520,
     "tag_prefix": "un.olf%",
     "output_table": "dbo.Furnace_Output",
@@ -55,7 +183,6 @@ DB_CONFIG = {
 # ---------------------------------------------------------------------------
 # RUNTIME MACRO STORE  (mutable global dict – every module imports this)
 # ---------------------------------------------------------------------------
-# Initialised with the two input blocks; modules update it in place.
 MACROS: dict = {}
 
 MACROS.update(INPUTS)
@@ -63,7 +190,7 @@ MACROS.update(PIPELINE_MACROS)
 
 # Additional macros set during INPUTS subprocess (derived):
 MACROS.update({
-    "end_time": None,           # filled from the timestamp of the input data
+    "end_time": None,
 
     # Recycle-ethane bounds (derived from Fur_change_recycle_ethane_limit)
     "Fur_change_recycle_ethane_upper_limit": INPUTS["Fur_change_recycle_ethane_limit"],
@@ -170,8 +297,10 @@ MACROS.update({
     **{f"Grid_Row_{i}_conversion_delta_best": 0 for i in range(1, 10)},
 })
 
+# Apply any Excel overrides that target direct MACROS entries
+MACROS.update(_macros_overrides)
+
 # ---------------------------------------------------------------------------
 # STORE  (replaces RapidMiner's remember/recall mechanism)
 # ---------------------------------------------------------------------------
-# A simple dict that any module can use to "store" and "recall" DataFrames.
 STORE: dict = {}

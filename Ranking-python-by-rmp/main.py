@@ -157,12 +157,17 @@ def run_pipeline(
 
         # ── Step 6: PRE-GRID ──────────────────────────────────────────────────
         df_pre_grid = module_06_pre_grid.run(df_preprocessed)
-
+        logger.info(f"pre-grid result shape: {df_pre_grid.shape}")
+        # logger.info(f"pre-grid result columns: {df_pre_grid.columns.tolist()}")
+       
         # ── Step 7: GRID MAIN ─────────────────────────────────────────────────
         df_pre_grid = module_07_grid_main.run(df_pre_grid)
+        logger.info(f"grid main result shape: {df_pre_grid.shape}")
 
         # ── Step 8: POST GRID ─────────────────────────────────────────────────
         df_post_grid = module_08_post_grid.run(df_pre_grid)
+        logger.info(f"post grid result shape: {df_post_grid.shape}")
+
 
     else:
         logger.info("MAIN branch: optimizer SKIPPED (no deviation / check=0).")
@@ -215,10 +220,13 @@ def run_pipeline(
 
     # ── Step 9: GENERATE OUTPUT ───────────────────────────────────────────────
     df_output = module_09_generate_output.run(df_post_grid)
+    logger.info(f"generate output result shape: {df_output.shape}")
 
     # ── Step 10: OUTPUT FORMAT CHECK ──────────────────────────────────────────
     try:
         df_long = module_10_output_format_check.run(df_output)
+        logger.info(f"output format check result shape: {df_long.shape}")
+
     except ValueError as exc:
         logger.error("Output format check failed: %s", exc)
         raise
@@ -237,7 +245,7 @@ def _log_summary(df_output: pd.DataFrame, start_ts: datetime):
     logger.info("  deviation_exists        = %s", MACROS.get("deviation_exists"))
     logger.info("  ranking_cause_indicator = %s", MACROS.get("ranking_cause_indicator"))
     logger.info("  sum_del_ethylene_final  = %.4f t/h", MACROS.get("sum_del_ethylene_final", 0))
-    logger.info("  Furnaces in output      = %d", len(df_output))
+    # logger.info("  Furnaces in output      = %d", len(df_output))
     if "overall_ranking" in df_output.columns:
         logger.info("  Ranking:")
         for _, row in df_output.sort_values("overall_ranking").iterrows():
@@ -318,12 +326,12 @@ def main():
         sys.exit(1)
 
     if args.output:
-        result.to_csv(args.output, index=False)
+        result.to_excel(args.output, index=False)
         logger.info("Output written to '%s'  (%d rows).", args.output, len(result))
     else:
         # Print first few rows to stdout
         print("\n── Pipeline result (first 20 rows) ──")
-        print(result.head(20).to_string(index=False))
+        # print(result.head(20).to_string(index=False))
 
     return result
 

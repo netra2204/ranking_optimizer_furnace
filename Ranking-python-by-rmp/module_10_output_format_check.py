@@ -1,202 +1,229 @@
 """
 module_10_output_format_check.py
 =================================
-Replicates the "Output_Format_Check" subprocess.
+Replicates the "Output_Format_Check" subprocess (RMP lines 9377–9432).
 
-The RapidMiner block uses a Handle Exception pattern:
-  Try:
-    Validate that the output DataFrame has exactly the 4 required columns
-    in the correct types:
-      Timestamp   – date/datetime (or parseable string)
-      sub_model_id – numeric
-      tag          – nominal (string)
-      value        – numeric
-    If valid, append a single dummy row of MISSING values to ensure the schema
-    is always passed through cleanly.
-  Except:
-    Throw exception "Output is not in correct format"
+This is a defensive schema-enforcement block, NOT a transformation. The
+input from module 09 is already in the correct 4-column long format:
+    Timestamp | sub_model_id | tag | value
+This module's only jobs are:
+  1. Verify those 4 columns exist with compatible types.
+  2. Append a single sentinel row of MISSING values (so the schema is always
+     visible downstream even if the payload is empty).
+  3. If validation fails, raise an exception with the exact RMP message
+     "Output is not in correct format".
 
-In Python we:
-  1. Validate required columns exist and have compatible types.
-  2. If valid, return df_output as-is (with a schema check pass flag).
-  3. If invalid, raise a ValueError with a descriptive message.
+Operator flow (mirrors RMP exactly):
 
-The output of this module is the *long* (melted) format used for DB writing:
-  Timestamp | sub_model_id | tag | value
+    Output_Format_Check
+    └─ Handle Exception "Output_format_check (2)"
+       │
+       ├─ TRY arm:
+       │   ├─ Create ExampleSet (13)  build 1-row missing-value frame:
+       │   │     Timestamp     → DATE,    MISSING (NaT)
+       │   │     sub_model_id  → NUMERIC, MISSING (NaN)
+       │   │     tag           → NOMINAL, MISSING (None)
+       │   │     value         → NUMERIC, MISSING (NaN)
+       │   └─ Append (20) merge_type="all"
+       │       Vertical concat of input + sentinel row.
+       │
+       └─ CATCH arm:
+             Throw Exception "Output is not in correct format"
 
-Inputs  (STORE)
-------
-    "df_final_output"
+The Handle Exception in RapidMiner triggers the CATCH arm when:
+  - The Append fails due to schema/type mismatch
+  - The input is not a valid example set
+We replicate that by validating the schema BEFORE the append, and raising
+the same exception string on any mismatch.
 
-Outputs
--------
-    df_long : pd.DataFrame   – long-format output ready for DB insert
-    STORE["df_output_long"]
+Public surface:
+    run(df) -> pd.DataFrame
+        Returns the input with one MISSING-valued sentinel row appended.
+        Raises ValueError("Output is not in correct format") on schema error.
 """
 
-import pandas as pd
-import numpy as np
-import logging
+from __future__ import annotations
 
-from config import MACROS, STORE, DB_CONFIG
+import logging
+from typing import Iterable
+
+import numpy as np
+import pandas as pd
+
+from config import STORE
 
 logger = logging.getLogger(__name__)
 
+# The exact column ordering and roles expected from module 09's output
 REQUIRED_COLUMNS = ["Timestamp", "sub_model_id", "tag", "value"]
-MODEL_ID = DB_CONFIG.get("model_id", 520)
+EXCEPTION_MESSAGE = "Output is not in correct format"
 
 
-def _recall(name):
-    return STORE.get(name, pd.DataFrame())
+# ===========================================================================
+# Helpers
+# ===========================================================================
+def _remember(name: str, df: pd.DataFrame) -> None:
+    STORE[name] = df.copy() if isinstance(df, pd.DataFrame) else df
 
 
-def _remember(name, df):
-    STORE[name] = df.copy()
+def _is_datetime_like(series: pd.Series) -> bool:
+    """True if the column already is datetime, or every non-null value parses
+    cleanly as a datetime."""
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return True
+    non_null = series.dropna()
+    if non_null.empty:
+        return True   # vacuously ok
+    try:
+        parsed = pd.to_datetime(non_null, errors="coerce")
+        return parsed.notna().all()
+    except Exception:
+        return False
 
 
-# ---------------------------------------------------------------------------
-# Convert wide df_final_output → long format (Timestamp | sub_model_id | tag | value)
-# ---------------------------------------------------------------------------
-def pivot_to_long(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Melt the wide final-output DataFrame into a long format suitable for the
-    Furnace_Output DB table.
+def _is_numeric_like(series: pd.Series) -> bool:
+    """True if the column is numeric, or every non-null value parses to numeric."""
+    if pd.api.types.is_numeric_dtype(series):
+        return True
+    non_null = series.dropna()
+    if non_null.empty:
+        return True
+    parsed = pd.to_numeric(non_null, errors="coerce")
+    return parsed.notna().all()
 
-    Each furnace × parameter combination becomes one row:
-      Timestamp    – from df
-      sub_model_id – constant MODEL_ID
-      tag          – column name (prefixed with entity_name if needed)
-      value        – numeric cell value
-    """
-    if df.empty:
-        logger.warning("pivot_to_long: input DataFrame is empty.")
-        return pd.DataFrame(columns=REQUIRED_COLUMNS)
 
-    id_vars = ["Timestamp", "entity_name"] if "entity_name" in df.columns else ["Timestamp"]
-
-    # Exclude non-numeric / structural columns from the melt
-    exclude = set(id_vars + ["_Timestamp_dt"])
-    value_vars = [c for c in df.columns if c not in exclude]
-
-    df_long = df.melt(
-        id_vars=id_vars,
-        value_vars=value_vars,
-        var_name="tag",
-        value_name="value"
+def _is_nominal_like(series: pd.Series) -> bool:
+    """True for string/object/category — matches RapidMiner's 'nominal'."""
+    return (
+        pd.api.types.is_string_dtype(series)
+        or pd.api.types.is_object_dtype(series)
+        or isinstance(series.dtype, pd.CategoricalDtype)
     )
 
-    # Prefix tag with entity_name to make it unique (mirrors the tag naming in RapidMiner)
-    if "entity_name" in df_long.columns:
-        df_long["tag"] = df_long["entity_name"].astype(str) + "." + df_long["tag"]
-        df_long.drop(columns=["entity_name"], inplace=True)
 
-    df_long["sub_model_id"] = MODEL_ID
-
-    # Coerce value to numeric; non-parseable → NaN
-    df_long["value"] = pd.to_numeric(df_long["value"], errors="coerce")
-
-    # Reorder columns
-    df_long = df_long[REQUIRED_COLUMNS]
-    logger.info("Long format: %d rows", len(df_long))
-    return df_long
-
-
-# ---------------------------------------------------------------------------
-# Validation
-# Mirrors: Handle Exception → Throw Exception "Output is not in correct format"
-# ---------------------------------------------------------------------------
-def validate_output(df_long: pd.DataFrame) -> bool:
+# ===========================================================================
+# Schema validation — fires the CATCH arm via exception on failure
+# ===========================================================================
+def _validate_schema(df: pd.DataFrame) -> None:
     """
-    Check that all required columns exist and have roughly the expected types.
-    Raises ValueError if invalid.
+    Verify the 4 required columns exist with compatible types.
+    Raises ValueError(EXCEPTION_MESSAGE) on any mismatch.
+
+    Type compatibility (mirrors RapidMiner's column roles):
+        Timestamp     → date / datetime-parseable
+        sub_model_id  → numeric / numeric-parseable
+        tag           → nominal (string/object)
+        value         → numeric / numeric-parseable
     """
-    missing = [c for c in REQUIRED_COLUMNS if c not in df_long.columns]
+    # ── Missing columns ──────────────────────────────────────────────────
+    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
-        raise ValueError(
-            f"Output is not in correct format – missing columns: {missing}"
-        )
+        logger.error("Output_Format_Check FAILED: missing columns %s", missing)
+        raise ValueError(EXCEPTION_MESSAGE)
 
-    # Timestamp must be parseable
-    try:
-        pd.to_datetime(df_long["Timestamp"].dropna().iloc[:1])
-    except Exception:
-        raise ValueError("Output is not in correct format – 'Timestamp' not parseable.")
+    # ── Type compatibility ──────────────────────────────────────────────
+    if not _is_datetime_like(df["Timestamp"]):
+        logger.error("Output_Format_Check FAILED: 'Timestamp' is not date-like.")
+        raise ValueError(EXCEPTION_MESSAGE)
 
-    # sub_model_id and value must be numeric
-    for col in ("sub_model_id", "value"):
-        if not pd.api.types.is_numeric_dtype(df_long[col]):
-            raise ValueError(
-                f"Output is not in correct format – column '{col}' is not numeric."
-            )
+    if not _is_numeric_like(df["sub_model_id"]):
+        logger.error("Output_Format_Check FAILED: 'sub_model_id' is not numeric.")
+        raise ValueError(EXCEPTION_MESSAGE)
 
-    # tag must be string/object
-    if not pd.api.types.is_string_dtype(df_long["tag"]) and \
-       not pd.api.types.is_object_dtype(df_long["tag"]):
-        raise ValueError("Output is not in correct format – 'tag' is not nominal/string.")
+    if not _is_nominal_like(df["tag"]):
+        logger.error("Output_Format_Check FAILED: 'tag' is not nominal/string.")
+        raise ValueError(EXCEPTION_MESSAGE)
 
-    logger.info("Output format validation PASSED.")
-    return True
+    if not _is_numeric_like(df["value"]):
+        logger.error("Output_Format_Check FAILED: 'value' is not numeric.")
+        raise ValueError(EXCEPTION_MESSAGE)
 
 
-# ---------------------------------------------------------------------------
-# Append dummy MISSING row (mirrors the Append (20) in the Handle Exception try-branch)
-# ---------------------------------------------------------------------------
-def append_schema_row(df_long: pd.DataFrame) -> pd.DataFrame:
+# ===========================================================================
+# Create ExampleSet (13) — build the 1-row sentinel of MISSING values
+# ===========================================================================
+def _build_missing_row() -> pd.DataFrame:
     """
-    Append a single all-NaN sentinel row so the schema is always visible
-    downstream even if the result set is empty.
+    RapidMiner's Create ExampleSet (13) builds a 1-example dataframe whose
+    cells are all MISSING but whose attribute *types* are pinned to:
+        Timestamp    : DATE
+        sub_model_id : NUMERIC
+        tag          : NOMINAL
+        value        : NUMERIC
     """
-    dummy = pd.DataFrame([{
+    return pd.DataFrame([{
         "Timestamp":    pd.NaT,
         "sub_model_id": np.nan,
         "tag":          None,
         "value":        np.nan,
     }])
-    return pd.concat([df_long, dummy], ignore_index=True)
 
 
-# ---------------------------------------------------------------------------
-# Main entry point
-# ---------------------------------------------------------------------------
-def run(df_final: pd.DataFrame = None) -> pd.DataFrame:
+# ===========================================================================
+# Append (20) — vertical concat, merge_type="all"
+# ===========================================================================
+def _append_missing_row(df: pd.DataFrame, sentinel: pd.DataFrame) -> pd.DataFrame:
     """
-    Execute the Output_Format_Check subprocess.
+    Concatenate sentinel on top of df (RMP wires Append's `example set 1` to
+    the input and `example set 2` to Create ExampleSet, so input rows come
+    first and the sentinel goes last). merge_type="all" preserves all columns
+    from both sides.
+    """
+    # Align to REQUIRED_COLUMNS order — guards against accidental column shuffles
+    df_in       = df[REQUIRED_COLUMNS].copy()
+    sentinel_in = sentinel[REQUIRED_COLUMNS].copy()
+    appended    = pd.concat([df_in, sentinel_in], axis=0, ignore_index=True)
+    return appended
+
+
+# ===========================================================================
+# Public entry point
+# ===========================================================================
+def run(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Execute Output_Format_Check.
 
     Parameters
     ----------
-    df_final : pd.DataFrame, optional
-        Wide final-output DataFrame.  If None, recalled from STORE.
+    df : pd.DataFrame
+        Long-format output from module 09 with columns:
+        Timestamp | sub_model_id | tag | value
 
     Returns
     -------
-    df_long : pd.DataFrame
-        Validated long-format output.
+    pd.DataFrame
+        The input with one extra row of MISSING values appended.
 
     Raises
     ------
-    ValueError
-        If the output does not conform to the required schema.
+    ValueError("Output is not in correct format")
+        If the schema does not match the required 4-column long format.
     """
     logger.info("=== MODULE 10 – OUTPUT FORMAT CHECK ===")
 
-    if df_final is None or (isinstance(df_final, pd.DataFrame) and df_final.empty):
-        df_final = _recall("df_final_output")
+    if df is None:
+        logger.error("Output_Format_Check FAILED: input is None.")
+        raise ValueError(EXCEPTION_MESSAGE)
 
+    # ── Handle Exception TRY arm ─────────────────────────────────────────
     try:
-        # Convert to long format
-        df_long = pivot_to_long(df_final)
+        _validate_schema(df)
+        sentinel = _build_missing_row()
+        appended = _append_missing_row(df, sentinel)
 
-        # Validate
-        validate_output(df_long)
-
-        # Append dummy schema row
-        df_long = append_schema_row(df_long)
-
-    except ValueError as exc:
-        logger.error("Output format check FAILED: %s", exc)
+    except ValueError:
+        # CATCH arm: re-raise the RMP exception message verbatim
         raise
 
-    _remember("df_output_long", df_long)
-    logger.info("OUTPUT FORMAT CHECK complete – %d rows (incl. schema sentinel).",
-                len(df_long))
-    return df_long
+    except Exception as exc:
+        # Any other failure (e.g. concat blowing up on a weird dtype) is
+        # treated as a schema failure — mirrors RapidMiner's Handle Exception.
+        logger.error("Output_Format_Check FAILED: unexpected error: %s", exc)
+        raise ValueError(EXCEPTION_MESSAGE) from exc
+
+    _remember("df_output_long", appended)
+    logger.info(
+        "OUTPUT FORMAT CHECK PASSED – %d input rows + 1 sentinel = %d total rows",
+        len(df), len(appended),
+    )
+    return appended
