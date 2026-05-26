@@ -130,11 +130,9 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from config import MACROS, STORE
+from config import MACROS, STORE, NUM_FURNACES, NUM_PASSES
 
 logger = logging.getLogger(__name__)
-
-MAX_FURNACES = 9
 
 # Cap on per-feed-combo conversion-grid combinations. The inner grid runs
 # once per surviving feed combo so it needs to stay fast.
@@ -782,7 +780,7 @@ def _extract_grid_row_macros(df: pd.DataFrame) -> int:
         return 0
 
     # Reset all Grid_Row_i_* macros first
-    for i in range(1, MAX_FURNACES + 1):
+    for i in range(1, NUM_FURNACES + 1):
         _set(f"Grid_Row_{i}_Feed_flow", 0.0)
         _set(f"Grid_Row_{i}_Furnace", "")
         _set(f"Grid_Row_{i}_Specific_Energy_consumption", 0.0)
@@ -795,7 +793,7 @@ def _extract_grid_row_macros(df: pd.DataFrame) -> int:
         _set(f"Grid_Row_{i}_part_override", 0.0)
 
     for idx, (_, row) in enumerate(df.iterrows(), start=1):
-        if idx > MAX_FURNACES:
+        if idx > NUM_FURNACES:
             break
         _set(f"Grid_Row_{idx}_Feed_flow",
              float(row.get("Feed_flow", 0.0)))
@@ -850,7 +848,7 @@ def _round_and_override_conversion_deltas(combo: List[float]) -> List[float]:
         else:
             result.append(0.0 if abs(floor_num) <  0.5 else floor_num)
     # If `combo` shorter than MAX, pad zeros
-    while len(result) < MAX_FURNACES:
+    while len(result) < NUM_FURNACES:
         result.append(0.0)
     return result
 
@@ -877,8 +875,8 @@ def _build_conv_ranges(n: int) -> List[List[float]]:
         if vals[-1] < hi - 1e-9:
             vals.append(round(hi, 6))
         ranges.append(vals)
-    # Pad to MAX_FURNACES with [0.0]
-    while len(ranges) < MAX_FURNACES:
+    # Pad to NUM_FURNACES with [0.0]
+    while len(ranges) < NUM_FURNACES:
         ranges.append([0.0])
     return ranges
 
@@ -979,7 +977,7 @@ def _enumerate_conversion_grid(df_per_row: pd.DataFrame) -> Dict[str, float]:
 
     Returns a summary dict of the winning combo's aggregated values.
     """
-    n = int(min(_mi("No_of_rows", 0), MAX_FURNACES))
+    n = int(min(_mi("No_of_rows", 0), NUM_FURNACES))
 
     if n == 0 or df_per_row.empty:
         return dict(sum_del_ethylene=-1e4, sum_Change_in_Recycle_Ethane_Feed=0.0,
@@ -1061,7 +1059,7 @@ def _enumerate_conversion_grid(df_per_row: pd.DataFrame) -> Dict[str, float]:
             # Conv_GRID_LOG(feed)-main row
             log_rows.append({
                 **{f"Grid_Row_{i}_conversion_delta": combo_full[i - 1]
-                   for i in range(1, MAX_FURNACES + 1)},
+                   for i in range(1, NUM_FURNACES + 1)},
                 "sum_del_ethylene": agg["sum_del_ethylene"],
                 "sum_Change_in_Recycle_Ethane_Feed":
                     agg["sum_Change_in_Recycle_Ethane_Feed"],
@@ -1124,7 +1122,7 @@ def _finalise_combo_and_update_max_benefit(df_per_row: pd.DataFrame,
         return
 
     # Build per-row with the winning conversion combo
-    combo = best.get("combo", [0.0] * MAX_FURNACES)
+    combo = best.get("combo", [0.0] * NUM_FURNACES)
     n     = int(min(_mi("No_of_rows", 0), len(combo), len(df_per_row)))
     df_win = _build_per_row_conv_table(df_per_row, combo[:n])
 
@@ -1251,7 +1249,7 @@ def run(df_per_row: pd.DataFrame) -> pd.DataFrame:
         _set("sum_del_ethylene", -1e4)
         _set("sum_Change_in_Recycle_Ethane_Feed", 0.0)
         _set("Conversion_Grid_Success", 0)
-        for i in range(1, MAX_FURNACES + 1):
+        for i in range(1, NUM_FURNACES + 1):
             _set(f"Grid_Row_{i}_conversion_delta", 0.0)
             _set(f"Grid_Row_{i}_conversion_delta_best", 0.0)
         return df_per_row
@@ -1273,7 +1271,7 @@ def run(df_per_row: pd.DataFrame) -> pd.DataFrame:
         _set("sum_del_ethylene", -1e4)
         _set("sum_Change_in_Recycle_Ethane_Feed", 0.0)
         _set("Conversion_Grid_Success", 0)
-        for i in range(1, MAX_FURNACES + 1):
+        for i in range(1, NUM_FURNACES + 1):
             _set(f"Grid_Row_{i}_conversion_delta", 0.0)
             _set(f"Grid_Row_{i}_conversion_delta_best", 0.0)
 

@@ -24,7 +24,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 
-from config import MACROS, STORE, INPUTS, PIPELINE_MACROS, DB_CONFIG
+from config import MACROS, STORE, INPUTS, PIPELINE_MACROS, DB_CONFIG, NUM_FURNACES
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ def apply_temp_changes(df: pd.DataFrame) -> pd.DataFrame:
     df["Fur_change_recycle_ethane_upper_limit"]  = lim
     df["Fur_change_recycle_ethane_lower_limit"]  = -lim
 
-    for i in range(1, 10):
+    for i in range(1, NUM_FURNACES + 1):
         df[f"Fur{i}_Fresh_Feed_Change"] = df["Fur_Fresh_Feed_Change"]
 
     df["Fur_Maximum_Conversion_Single_furnace_limit"] = float(INPUTS["single_fur_limit"])

@@ -55,7 +55,7 @@ from typing import Iterable, List
 import numpy as np
 import pandas as pd
 
-from config import MACROS, STORE
+from config import MACROS, STORE, NUM_FURNACES
 
 logger = logging.getLogger(__name__)
 
@@ -564,7 +564,7 @@ def _loop_rename_system_optimum(df: pd.DataFrame) -> pd.DataFrame:
     silently skips that column — which is exactly what RMP does.
     """
     rename_map = {}
-    for i in range(1, 10):
+    for i in range(1, NUM_FURNACES + 1):
         for field in SYSTEM_OPTIMUM_FIELDS:
             old = f"Fur{i}_{field}_system_optimum"
             new = f"Fur{i}_{field}"

@@ -45,6 +45,8 @@ _INPUTS_DEFAULTS = {
     "single_fur_limit": 5,
     "fresh_feed_input": 110,
     "pull_tables_from_db": 0,             # 0 = use local file; 1 = pull from DB
+    "NUM_FURNACES": 0,   # ← ADD THIS
+    "NUM_PASSES": 0,
 }
 
 _PIPELINE_MACROS_DEFAULTS = {
@@ -166,6 +168,11 @@ def _load_excel_overrides(path: str | None) -> dict:
 _overrides = _load_excel_overrides(EXCEL_CONFIG_PATH)
 
 INPUTS          = {**_INPUTS_DEFAULTS,          **{k: v for k, v in _overrides.items() if k in _INPUTS_DEFAULTS}}
+NUM_FURNACES: int = int(INPUTS["NUM_FURNACES"])
+NUM_PASSES:   int = int(INPUTS["NUM_PASSES"])
+if not logging.root.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.info("Pipeline configured for %d furnaces and %d passes per furnace.", NUM_FURNACES, NUM_PASSES)
 PIPELINE_MACROS = {**_PIPELINE_MACROS_DEFAULTS, **{k: v for k, v in _overrides.items() if k in _PIPELINE_MACROS_DEFAULTS}}
 _macros_overrides = {k: v for k, v in _overrides.items() if k in _MACROS_OVERRIDEABLE}
 
@@ -197,7 +204,7 @@ MACROS.update({
     "Fur_change_recycle_ethane_lower_limit": -INPUTS["Fur_change_recycle_ethane_limit"],
 
     # Fresh-feed change flags (one per furnace; all start equal)
-    **{f"Fur{i}_Fresh_Feed_Change": INPUTS["fresh_feed_change_set"] for i in range(1, 10)},
+    **{f"Fur{i}_Fresh_Feed_Change": INPUTS["fresh_feed_change_set"] for i in range(1, NUM_FURNACES + 1)},
 
     "Fur_Maximum_Conversion_Single_furnace_limit": INPUTS["single_fur_limit"],
     "Fur_Expected_Fresh_Feed": INPUTS["fresh_feed_input"],
@@ -215,21 +222,21 @@ MACROS.update({
     "ranking_cause_indicator": 1,
 
     # Grid result accumulators
-    **{f"Row_{i}_upper_limit_feed": 0 for i in range(1, 10)},
-    **{f"Row_{i}_lower_limit_feed": 0 for i in range(1, 10)},
-    **{f"Row_{i}_step_size_feed": 0 for i in range(1, 10)},
-    **{f"Grid_Row_{i}_conversion_delta": 0 for i in range(1, 10)},
-    **{f"Row_{i}_step_size_conversion": 0 for i in range(1, 10)},
-    **{f"Row_{i}_upper_limit_conversion": 0 for i in range(1, 10)},
-    **{f"Row_{i}_lower_limit_conversion": 0 for i in range(1, 10)},
-    **{f"Row_{i}_Furnace": 0 for i in range(1, 10)},
-    **{f"Row_{i}_part_override": 0 for i in range(1, 10)},
-    **{f"Row_{i}_Feed_flow": 0 for i in range(1, 10)},
-    **{f"Row_{i}_Conversion": 0 for i in range(1, 10)},
-    **{f"Row_{i}_Furnace_condition": "" for i in range(1, 10)},
-    **{f"Row_{i}_Ethylene_Production": 0 for i in range(1, 10)},
-    **{f"Row_{i}_Specific_Energy_consumption": 0 for i in range(1, 10)},
-    **{f"Row_{i}_Current_Recycle_Ethane_Feed": 0 for i in range(1, 10)},
+    **{f"Row_{i}_upper_limit_feed": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_lower_limit_feed": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_step_size_feed": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Grid_Row_{i}_conversion_delta": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_step_size_conversion": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_upper_limit_conversion": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_lower_limit_conversion": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_Furnace": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_part_override": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_Feed_flow": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_Conversion": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_Furnace_condition": "" for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_Ethylene_Production": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_Specific_Energy_consumption": 0 for i in range(1, NUM_FURNACES + 1)},
+    **{f"Row_{i}_Current_Recycle_Ethane_Feed": 0 for i in range(1, NUM_FURNACES + 1)},
 
     # Feed-grid summary macros
     "sum_del_Feed_flow": 0,
@@ -294,7 +301,7 @@ MACROS.update({
     "furnace_step_adjust_feed_grid_limit": 0,
 
     # Grid result – conversion deltas best found
-    **{f"Grid_Row_{i}_conversion_delta_best": 0 for i in range(1, 10)},
+    **{f"Grid_Row_{i}_conversion_delta_best": 0 for i in range(1, NUM_FURNACES + 1)},
 })
 
 # Apply any Excel overrides that target direct MACROS entries

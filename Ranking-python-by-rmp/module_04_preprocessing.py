@@ -38,7 +38,7 @@ import numpy as np
 import logging
 import re
 
-from config import MACROS, STORE
+from config import MACROS, STORE, NUM_PASSES
 
 logger = logging.getLogger(__name__)
 
@@ -150,16 +150,7 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
     # Margin in Steam – always 0 per formula
     df["Margin_in_Steam"] = 0
 
-    pass_cols = [
-    "pass1_mixed_feed_flow_controller_opening",
-    "pass2_mixed_feed_flow_controller_opening",
-    "pass3_mixed_feed_flow_controller_opening",
-    "pass4_mixed_feed_flow_controller_opening",
-    "pass5_mixed_feed_flow_controller_opening",
-    "pass6_mixed_feed_flow_controller_opening",
-    "pass7_mixed_feed_flow_controller_opening",
-    "pass8_mixed_feed_flow_controller_opening",
-    ]
+    pass_cols = [f"pass{n}_mixed_feed_flow_controller_opening" for n in range(1, NUM_PASSES + 1)]
     feed_limit = macro("margin_value_feed_limit")
     df["Margin_in_Feed"] = np.where(
         np.all([col(p) < feed_limit for p in pass_cols], axis=0),
@@ -702,7 +693,7 @@ def run_branch5(df: pd.DataFrame) -> pd.DataFrame:
         df_rl["min_days_pass"] = df_rl.min(axis=1)
 
         # Generate Attributes (36): passN_feed_red_potential_on_min_days
-        for n in range(1, 9):
+        for n in range(1, NUM_PASSES + 1):
             rl_col = f"pass{n}_runlength_remaining"
             df_rl[f"pass{n}_feed_red_potential_on_min_days"] = (
                 np.where(df_rl[rl_col] == df_rl["min_days_pass"], 0, 1)

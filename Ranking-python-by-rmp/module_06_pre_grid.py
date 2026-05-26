@@ -84,11 +84,9 @@ import logging
 import pandas as pd
 import numpy as np
 
-from config import MACROS, STORE
+from config import MACROS, STORE, NUM_FURNACES, NUM_PASSES
 
 logger = logging.getLogger(__name__)
-
-MAX_FURNACES = 9
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,7 +154,7 @@ def compute_initial_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     def _frp_row(row):
         total = 0.0
-        for n in range(1, 9):
+        for n in range(1, NUM_PASSES + 1):
             flow_col  = f"pass{n}_mixedfeed_flow"
             pot_col   = f"pass{n}_feed_red_potential_on_min_days"
             flow = float(row.get(flow_col, 0) or 0)
@@ -232,7 +230,7 @@ def split_good_nongood_and_compute_limits(df: pd.DataFrame):
         #   floor(max(0, threshold - passN_flow) / pass_step) * upper_feed_condition_passN))
         def _max_pot_row(row):
             total = 0.0
-            for n in range(1, 9):
+            for n in range(1, NUM_PASSES + 1):
                 flow_col = f"pass{n}_mixedfeed_flow"
                 cond_col = f"upper_feed_condition_pass{n}"
                 flow = float(row.get(flow_col, 0) or 0)
@@ -830,7 +828,7 @@ def branch_biasing1(df: pd.DataFrame) -> pd.DataFrame:
 # Reset Row macros – Loop (48)
 # =============================================================================
 def reset_row_macros():
-    for i in range(1, MAX_FURNACES + 1):
+    for i in range(1, NUM_FURNACES + 1):
         MACROS[f"Row_{i}_upper_limit_feed"]       = 0
         MACROS[f"Row_{i}_lower_limit_feed"]       = 0
         MACROS[f"Row_{i}_step_size_feed"]         = 0
@@ -849,7 +847,7 @@ def extract_row_macros_from_df(df: pd.DataFrame):
     if "overall_ranking" in df.columns:
         df = df.sort_values("overall_ranking").reset_index(drop=True)
 
-    n = min(len(df), MAX_FURNACES)
+    n = min(len(df), NUM_FURNACES)
     MACROS["Number_of_rows"] = n
 
     col_map = {

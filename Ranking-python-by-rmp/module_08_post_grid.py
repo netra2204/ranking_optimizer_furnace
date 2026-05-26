@@ -67,17 +67,15 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-from config import MACROS, STORE
+from config import MACROS, STORE, NUM_FURNACES
 
 logger = logging.getLogger(__name__)
-
-MAX_FURNACES = 9
 
 # Columns produced by Create ExampleSet (4) in the RMP — the zero-valued
 # fallback log when no real merged log exists.
 _LOG_COLS = (
-    [f"Row_{i}_feed_delta"             for i in range(1, MAX_FURNACES + 1)]
-    + [f"Grid_Row_{i}_conversion_delta" for i in range(1, MAX_FURNACES + 1)]
+    [f"Row_{i}_feed_delta"             for i in range(1, NUM_FURNACES + 1)]
+    + [f"Grid_Row_{i}_conversion_delta" for i in range(1, NUM_FURNACES + 1)]
     + ["sum_del_ethylene", "sum_Change_in_Recycle_Ethane_Feed"]
 )
 
@@ -164,8 +162,8 @@ def _extract_best_biases(df_log: pd.DataFrame) -> pd.DataFrame:
     values in furnace-index order.
     """
     if df_log.empty:
-        return pd.DataFrame({"feed_bias":       [0.0] * MAX_FURNACES,
-                             "conversion_bias": [0.0] * MAX_FURNACES})
+        return pd.DataFrame({"feed_bias":       [0.0] * NUM_FURNACES,
+                             "conversion_bias": [0.0] * NUM_FURNACES})
 
     # Sort (118) + Filter Example Range (11)
     if "sum_del_ethylene" not in df_log.columns:
@@ -176,7 +174,7 @@ def _extract_best_biases(df_log: pd.DataFrame) -> pd.DataFrame:
 
     feed_biases = []
     conv_biases = []
-    for i in range(1, MAX_FURNACES + 1):
+    for i in range(1, NUM_FURNACES + 1):
         fb_col = f"Row_{i}_feed_delta"
         cb_col = f"Grid_Row_{i}_conversion_delta"
         feed_biases.append(float(winner[fb_col]) if fb_col in winner.index else 0.0)

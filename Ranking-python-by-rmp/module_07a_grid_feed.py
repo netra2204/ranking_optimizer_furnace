@@ -78,7 +78,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-from config import MACROS, STORE
+from config import MACROS, STORE, NUM_FURNACES, NUM_PASSES
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,6 @@ except ImportError:
                    "will be stubbed (sum_del_ethylene=0, Conversion_Grid_Success=0).")
 logger.info("conversion availability: %s", _CONV_AVAILABLE)
 print(f"[module_07a import] _CONV_AVAILABLE = {_CONV_AVAILABLE}")
-MAX_FURNACES = 9
 
 # Hard cap on combinatorial enumeration. 1M is plenty given that in practice
 # most furnaces have step_size_feed == 0 and contribute exactly one value.
@@ -171,7 +170,7 @@ def _init_grid_macros() -> None:
     # Initialise best-so-far trackers (mirror feed_delta_* / conversion_delta_best_*).
     # These are the macros Subprocess (132) writes; we initialise to 0 so that
     # if no combo ever wins, post-grid sees zeros.
-    for i in range(1, MAX_FURNACES + 1):
+    for i in range(1, NUM_FURNACES + 1):
         _set(f"feed_delta_{i}", 0.0)
         _set(f"conversion_delta_best_{i}", 0.0)
         _set(f"Row_{i}_feed_delta", 0.0)
@@ -259,7 +258,7 @@ def _signature(feed_deltas: List[float]) -> str:
 
     Pads with 0.0 when fewer than 9 furnaces.
     """
-    full = list(feed_deltas) + [0.0] * (MAX_FURNACES - len(feed_deltas))
+    full = list(feed_deltas) + [0.0] * (NUM_FURNACES - len(feed_deltas))
     return "#".join(str(round(v, 6)) for v in full) + "#"
 
 
@@ -362,8 +361,8 @@ def _build_per_row_table(df: pd.DataFrame, feed_deltas: List[float]) -> pd.DataF
 def _set_row_feed_delta_macros(feed_deltas: List[float]) -> None:
     for i, v in enumerate(feed_deltas, start=1):
         _set(f"Row_{i}_feed_delta", float(v))
-    # Pad if fewer than MAX_FURNACES
-    for i in range(len(feed_deltas) + 1, MAX_FURNACES + 1):
+    # Pad if fewer than NUM_FURNACES
+    for i in range(len(feed_deltas) + 1, NUM_FURNACES + 1):
         _set(f"Row_{i}_feed_delta", 0.0)
     _set("sum_del_Feed_flow", float(sum(feed_deltas)))
 
@@ -389,7 +388,7 @@ def _commit_best_if_winner() -> None:
         return
 
     # ── Subprocess (132) — commit current combo as new best ───────────────
-    for i in range(1, MAX_FURNACES + 1):
+    for i in range(1, NUM_FURNACES + 1):
         _set(f"feed_delta_{i}",            _m(f"Row_{i}_feed_delta", 0.0))
         _set(f"conversion_delta_best_{i}", _m(f"Grid_Row_{i}_conversion_delta", 0.0))
 
@@ -401,7 +400,7 @@ def _commit_best_if_winner() -> None:
         "  ▶ NEW BEST: sum_del_eth=%.4f  sum_del_feed=%.2f  "
         "feed_deltas=%s",
         sum_eth, _m("sum_del_Feed_flow"),
-        [round(_m(f"feed_delta_{i}"), 2) for i in range(1, MAX_FURNACES + 1)],
+        [round(_m(f"feed_delta_{i}"), 2) for i in range(1, NUM_FURNACES + 1)],
     )
 
 
@@ -409,9 +408,9 @@ def _commit_best_if_winner() -> None:
 # Log "Feed_Conversion_merged_log" — append one row per evaluated combo
 # ---------------------------------------------------------------------------
 _MERGED_LOG_COLS = (
-    [f"Row_{i}_feed_delta"            for i in range(1, MAX_FURNACES + 1)]
+    [f"Row_{i}_feed_delta"            for i in range(1, NUM_FURNACES + 1)]
     + ["sum_del_ethylene", "sum_Change_in_Recycle_Ethane_Feed"]
-    + [f"Grid_Row_{i}_conversion_delta" for i in range(1, MAX_FURNACES + 1)]
+    + [f"Grid_Row_{i}_conversion_delta" for i in range(1, NUM_FURNACES + 1)]
 )
 
 
@@ -457,7 +456,7 @@ def _run_conversion_grid(df_per_row: pd.DataFrame) -> pd.DataFrame:
     _set("sum_del_ethylene", -1e4)
     _set("sum_Change_in_Recycle_Ethane_Feed", 0.0)
     _set("Conversion_Grid_Success", 0)
-    for i in range(1, MAX_FURNACES + 1):
+    for i in range(1, NUM_FURNACES + 1):
         _set(f"Grid_Row_{i}_conversion_delta", 0.0)
     return df_per_row
 
@@ -639,16 +638,16 @@ def run(df: pd.DataFrame) -> pd.DataFrame:
 
         # ── After the loop: Row_N_feed_delta currently hold the *last*
         # combo, not the winning one. Restore the best.
-        for i in range(1, MAX_FURNACES + 1):
+        for i in range(1, NUM_FURNACES + 1):
             _set(f"Row_{i}_feed_delta", _m(f"feed_delta_{i}", 0.0))
             _set(f"Grid_Row_{i}_conversion_delta",
                  _m(f"conversion_delta_best_{i}", 0.0))
 
         _set("sum_del_Feed_flow",
-             float(sum(_m(f"feed_delta_{i}", 0.0) for i in range(1, MAX_FURNACES + 1))))
+             float(sum(_m(f"feed_delta_{i}", 0.0) for i in range(1, NUM_FURNACES + 1))))
 
         # Feed_Grid_Character of the WINNING combo (informational)
-        winning = [_m(f"feed_delta_{i}", 0.0) for i in range(1, MAX_FURNACES + 1)]
+        winning = [_m(f"feed_delta_{i}", 0.0) for i in range(1, NUM_FURNACES + 1)]
         _set("Feed_Grid_Character", _signature(winning))
 
     except Exception as exc:
