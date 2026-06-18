@@ -24,6 +24,7 @@ Usage
 
     Or import and call `run_pipeline(csv_path=...)` from another script.
 """
+print("START OF SCRIPT")
 
 import argparse
 import logging
@@ -31,9 +32,31 @@ import sys
 import pandas as pd
 from datetime import datetime
 
+import os
+sys.path.append(r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\ranking-common-process")
+import main as folder1_main
+macros_f1   = folder1_main.build_default_macros()
+store_f1    = folder1_main.build_io_store(
+    tag_parameter_mapping=pd.DataFrame(),
+        text_code_mapping=pd.DataFrame(),
+        ccp_status=pd.DataFrame(),
+        entity=pd.DataFrame(),
+        parameters=pd.DataFrame(),
+        entity_parameter=pd.DataFrame(),
+        tag=pd.DataFrame(),
+        furnace_ranking_info=pd.DataFrame(),
+)
+input_example_set =  pd.DataFrame()           #input of common ranking parameterization
+# This is the result from folder1
+result_df = folder1_main.run_process(input_example_set, macros_f1, store_f1)
+
+# ── Now continue with folder2's own pipeline ─────────────────────────
+from config import MACROS, STORE, INPUTS, DB_CONFIG   # folder2's config
+
+# result_df is now your input — use it however folder2 needs it
+# e.g. pass it to folder2's own processing functions
 # ── Global state ──────────────────────────────────────────────────────────────
 from config import MACROS, STORE
-
 # ── Modules ───────────────────────────────────────────────────────────────────
 import module_01_inputs
 import module_02_initialization
@@ -53,7 +76,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("main")
-
+print("LOGGING IMPORTED")
 def load_store_data(
     tag_parameter_mapping_csv: str = None,
     ropt_extract_macro_values_csv: str = None,
@@ -136,6 +159,8 @@ def run_pipeline(
     # Bypassing initialization & parameterization — data already in wide format
     df_param = df_main.copy()
     df_preprocessed = module_04_preprocessing.run(df_param)
+    # df_preprocessed.to_excel(r"C:\Users\User\Documents\POC\prepro-output.xlsx", index=False)
+    logger.info("pre-pro output written")
 
     # ── Step 5: PAST HOUR LOGIC ───────────────────────────────────────────────
     # Checks deviation_exists; sets MACROS["deviation_exists"] = 0 or 1
@@ -157,12 +182,17 @@ def run_pipeline(
 
         # ── Step 6: PRE-GRID ──────────────────────────────────────────────────
         df_pre_grid = module_06_pre_grid.run(df_preprocessed)
+        # df_pre_grid.to_excel(r"C:\Users\User\Documents\POC\pre-grid-output.xlsx", index=False)
+        logger.info("pre-grid output written")
         logger.info(f"pre-grid result shape: {df_pre_grid.shape}")
         # logger.info(f"pre-grid result columns: {df_pre_grid.columns.tolist()}")
        
         # ── Step 7: GRID MAIN ─────────────────────────────────────────────────
         df_pre_grid = module_07_grid_main.run(df_pre_grid)
         logger.info(f"grid main result shape: {df_pre_grid.shape}")
+        df_pre_grid.to_excel(r"C:\Users\netra.joshi\Documents\POC\Results\grid-main-result-2.xlsx", index=False)
+        logger.info("grid main output written")
+
 
         # ── Step 8: POST GRID ─────────────────────────────────────────────────
         df_post_grid = module_08_post_grid.run(df_pre_grid)
@@ -269,7 +299,7 @@ def _parse_args():
         description="Furnace Ranking Optimisation Pipeline"
     )
     parser.add_argument(
-        "--csv",
+        result_df,
         metavar="PATH",
         default=None,
         help="Path to the main input CSV (join-data). "
@@ -285,7 +315,7 @@ def _parse_args():
     parser.add_argument(
         "--output",
         metavar="PATH",
-        default=None,
+        default=r"C:\Users\netra.joshi\Documents\POC\Results\long-format-result-15_mar_4pm-16.xlsx",
         help="Write the long-format output to this CSV path.",
     )
     parser.add_argument(
@@ -310,12 +340,12 @@ def main():
 
     try:
         load_store_data(
-        tag_parameter_mapping_csv     = r"C:\Users\User\Documents\POC\tag-parameter-mapping (1).xlsx",
-        ropt_extract_macro_values_csv = r"C:\Users\User\Documents\POC\parameters.xlsx",
-        inferred_tags_1_csv           = r"C:\Users\User\Documents\POC\inferred_tags_1.xlsx",
-        inferred_tags_2_csv           = r"C:\Users\User\Documents\POC\inferred_tags_2.xlsx",
-        inferred_tags_3_csv           = r"C:\Users\User\Documents\POC\inferred_tags_3.xlsx",
-        inferred_tags_4_csv           = r"C:\Users\User\Documents\POC\inferred_tags_4.xlsx",)
+        tag_parameter_mapping_csv     = r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\tag-parameter-mapping (1).xlsx",
+        ropt_extract_macro_values_csv = r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\parameters.xlsx",
+        inferred_tags_1_csv           = r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\inferred_tags_1.xlsx",
+        inferred_tags_2_csv           = r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\inferred_tags_2.xlsx",
+        inferred_tags_3_csv           = r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\inferred_tags_3.xlsx",
+        inferred_tags_4_csv           = r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\inferred_tags_4.xlsx",)
         result = run_pipeline(
             csv_path=args.csv,
             prev_hour_csv_path=args.prev_csv,

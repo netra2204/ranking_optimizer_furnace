@@ -216,6 +216,7 @@ def split_good_nongood_and_compute_limits(df: pd.DataFrame):
             (margin_feed == 1) & (margin_lower == 0), 0,
             np.where((margin_feed == 1) & (margin_lower == 1), 1, 1000)
         )
+        # logger.info("MARGIN CONDITION TYPE:\n%s", df_good[["entity_name", "Margin_condition_type", 'saturator_margin']].to_string(index=False))
 
         # upper_limit_feed (initial before cap)
         mct = df_good["Margin_condition_type"]
@@ -250,9 +251,11 @@ def split_good_nongood_and_compute_limits(df: pd.DataFrame):
         df_good["upper_limit_feed"] = np.minimum(
             df_good["upper_limit_feed"], df_good["max_potential_total_feed"]
         )
+        # logger.info("upper limit feed:\n%s", df_good[["entity_name", "upper_limit_feed"]].to_string(index=False))
 
         # step_size_feed
         df_good["step_size_feed"] = np.where(df_good["upper_limit_feed"] > 1, 2.0, df_good["upper_limit_feed"])
+        # logger.info("stepsize feed:\n%s", df_good[["entity_name", "step_size_feed"]].to_string(index=False))
 
         # Furnace_condition2 = Furnace_condition
         df_good["Furnace_condition2"] = df_good["Furnace_condition"]
@@ -310,6 +313,7 @@ def branch_112(df_good: pd.DataFrame, df_nongood: pd.DataFrame) -> pd.DataFrame:
         # exclude (55): drop Furnace_condition2, lower_limit_feed_org
         drop55 = ["Furnace_condition2", "lower_limit_feed_org"]
         df_all.drop(columns=[c for c in drop55 if c in df_all.columns], inplace=True)
+        # logger.info("AFTER BRANCH 112:\n%s", df_all[["entity_name", 'overall_ranking','upper_limit_feed', 'step_size_feed']].to_string(index=False))
 
         return df_all
 
@@ -771,7 +775,9 @@ def branch_biasing1(df: pd.DataFrame) -> pd.DataFrame:
     # Sort (2) asc factor + Generate ID
     if "factor" in df.columns:
         df = df.sort_values("factor", ascending=True).reset_index(drop=True)
-    df["id"] = range(len(df))
+    df["id"] = range(1,len(df)+1)
+    # logger.info("AFTER sort 2 :\n%s", df[["entity_name", 'overall_ranking','upper_limit_feed', 'step_size_feed']].to_string(index=False))
+
 
     # Loop (While) (36): balance_feed = mixed_feed_margin
     balance = float(_m("mixed_feed_margin", 0))
@@ -789,6 +795,7 @@ def branch_biasing1(df: pd.DataFrame) -> pd.DataFrame:
         MACROS["balance_feed"] = balance
 
     # Append (76): loop output is already in df
+    # logger.info("AFTER LOOP WHILE:\n%s", df[["entity_name", 'overall_ranking','id', 'taken', 'balance_taken']].to_string(index=False))
 
     # Filter (2): balance_taken == 0 → Extract Macro (2): id_for_balance
     df_bal0 = df[df["balance_taken"] == 0.0]
@@ -817,6 +824,7 @@ def branch_biasing1(df: pd.DataFrame) -> pd.DataFrame:
     df["upper_limit_feed"] = df.apply(_up2, axis=1)
     df["step_size_feed"]   = df.apply(_step2, axis=1)
     df["lower_limit_feed"] = np.where(df["step_size_feed"] > 0, 0.0, df["upper_limit_feed"])
+    logger.info("AFTER GEN ATT :\n%s", df[["entity_name", 'overall_ranking', 'upper_limit_feed', 'step_size_feed']].to_string(index=False))
 
     # Select Attributes (2): drop taken, balance_taken, id
     df.drop(columns=[c for c in ["taken", "balance_taken", "id"] if c in df.columns], inplace=True)

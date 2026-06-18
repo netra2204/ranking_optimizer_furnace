@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Set to None to skip Excel loading entirely.
 EXCEL_CONFIG_PATH: str | None = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "config_overrides.xlsx",
+    r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\config_overrides.xlsx",
 )
 
 # ---------------------------------------------------------------------------
@@ -180,7 +180,7 @@ _macros_overrides = {k: v for k, v in _overrides.items() if k in _MACROS_OVERRID
 # DATABASE / REPOSITORY PATHS  (change to match your environment)
 # ---------------------------------------------------------------------------
 DB_CONFIG = {
-    "repository_entry": r"C:\Users\User\Downloads\Charan_Coilsim\Charan_Coilsim\parameterization-ranking-data.xlsx",
+    "repository_entry": r"C:\Users\netra.joshi\Downloads\Ingenero_misc\Charan_Coilsim\Charan_Coilsim\parameterization-ranking-data.xlsx",
     "model_id": 520,
     "tag_prefix": "un.olf%",
     "output_table": "dbo.Furnace_Output",
