@@ -30,11 +30,15 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Change this to an absolute path or a path relative to this file.
 # Set to None to skip Excel loading entirely.
+# EXCEL_CONFIG_PATH: str | None = os.path.join(
+#     os.path.dirname(os.path.abspath(__file__)),
+#     r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\config_overrides.xlsx",
+# )
 EXCEL_CONFIG_PATH: str | None = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\config_overrides.xlsx",
+    "Python-Inputs",
+    "config_overrides.xlsx"
 )
-
 # ---------------------------------------------------------------------------
 # HARDCODED DEFAULTS  (used when Excel loading is disabled or the key is absent)
 # ---------------------------------------------------------------------------
@@ -180,7 +184,11 @@ _macros_overrides = {k: v for k, v in _overrides.items() if k in _MACROS_OVERRID
 # DATABASE / REPOSITORY PATHS  (change to match your environment)
 # ---------------------------------------------------------------------------
 DB_CONFIG = {
-    "repository_entry": r"C:\Users\netra.joshi\Downloads\Ingenero_misc\Charan_Coilsim\Charan_Coilsim\parameterization-ranking-data.xlsx",
+    "repository_entry": os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "Python-Inputs",
+        "parameterization-ranking-data.xlsx"
+    ),
     "model_id": 520,
     "tag_prefix": "un.olf%",
     "output_table": "dbo.Furnace_Output",
