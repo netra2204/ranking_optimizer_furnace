@@ -187,31 +187,27 @@ def _init_grid_macros() -> None:
 # ===========================================================================
 # FEED GRID (2) — build the per-furnace value list
 # ===========================================================================
-def _linear_range(lower: float, upper: float, steps: float) -> List[float]:
+def _linear_range(lower: float, upper: float, step: float) -> List[float]:
     """
-    Replicates RapidMiner's `[min;max;steps;linear]` grid syntax used by the
-    `optimize_parameters_grid` operator FEED GRID (2) (.rmp line 5520).
+    Incremental range from lower to upper in steps of `step`.
 
-    *** RapidMiner semantics (THE FIX): the 3rd field is the NUMBER OF STEPS,
-    NOT a step size. A grid with `steps` steps produces `steps+1` evenly-spaced
-    values:
-        value_k = min + k*(max-min)/steps      for k = 0 .. steps
-    e.g. [0;4;1;linear] -> {0, 4}   (NOT {0,1,2,3,4}).
+    step_size_feed is now a true increment (injected as 1 from module_04).
+    Delta value 3 is excluded from the output — the valid feed-delta sequence
+    is [0, 1, 2, 4] (skipping 3) when lower=0/upper=4/step=1.
 
-    `steps <= 0` (e.g. Row_i_step_size_feed == 0) collapses to the lower
-    endpoint only (single value) — consistent with Loop (49)'s step==0 override.
-
-    OPEN ITEM (confirm against a live RapidMiner run): the driving macro is
-    named `..._step_size_...` yet RapidMiner consumes this slot as a step
-    COUNT. When the macro carries a non-integer value (e.g. when upper<=1 the
-    pre-grid can make step_size_feed fractional) RapidMiner's integer 'steps'
-    field must coerce it; we round to nearest int and flag the ambiguity here
-    rather than guess silently.
+    step <= 0 or upper <= lower collapses to [lower] (furnace locked).
     """
-    s = int(round(float(steps)))
+    s = float(step)
     if s <= 0 or upper <= lower:
         return [round(float(lower), 6)]
-    return [round(lower + k * (upper - lower) / s, 6) for k in range(s + 1)]
+    vals = []
+    v = float(lower)
+    while v <= upper + 1e-9:
+        rv = round(v, 6)
+        if abs(rv - 3.0) > 1e-6:   # exclude delta == 3
+            vals.append(rv)
+        v += s
+    return vals if vals else [round(float(lower), 6)]
 
 
 def _build_feed_ranges(n: int) -> List[List[float]]:

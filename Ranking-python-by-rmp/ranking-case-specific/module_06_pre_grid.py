@@ -123,11 +123,10 @@ def compute_initial_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     shc = _col(df, "shc_ratio")
 
-    # lower/upper/flag/step initialised to 0
+    # lower/upper/flag initialised to 0
     df["lower_limit_feed"]             = 0.0
     df["upper_limit_feed"]             = 0.0
     df["flag_conversion_part_override"] = 0
-    df["step_size_conversion"]          = 0.0
 
     # Ethane_Feed = Feed_flow / (1 + shc_ratio)
     feed = _col(df, "Feed_flow")
@@ -253,10 +252,6 @@ def split_good_nongood_and_compute_limits(df: pd.DataFrame):
         )
         # logger.info("upper limit feed:\n%s", df_good[["entity_name", "upper_limit_feed"]].to_string(index=False))
 
-        # step_size_feed
-        df_good["step_size_feed"] = np.where(df_good["upper_limit_feed"] > 1, 2.0, df_good["upper_limit_feed"])
-        # logger.info("stepsize feed:\n%s", df_good[["entity_name", "step_size_feed"]].to_string(index=False))
-
         # Furnace_condition2 = Furnace_condition
         df_good["Furnace_condition2"] = df_good["Furnace_condition"]
 
@@ -269,7 +264,6 @@ def split_good_nongood_and_compute_limits(df: pd.DataFrame):
     # ── UNMATCHED path: Generate Attributes (177) ─────────────────────────────
     if not df_nongood.empty:
         df_nongood["Furnace_condition2"] = "No Good"
-        df_nongood["step_size_feed"]     = 0.0
 
     return df_good, df_nongood
 
@@ -304,11 +298,6 @@ def branch_112(df_good: pd.DataFrame, df_nongood: pd.DataFrame) -> pd.DataFrame:
             frp = _col(df_all, "feed_reduction_potential")
             df_all["upper_limit_feed"] = 0.0
             df_all["lower_limit_feed"] = -frp
-            df_all["step_size_feed"]   = 1.0
-        else:
-            # Generate Attributes (324)
-            ulf = _col(df_all, "upper_limit_feed")
-            df_all["step_size_feed"] = np.where(ulf > 1, 2.0, ulf)
 
         # exclude (55): drop Furnace_condition2, lower_limit_feed_org
         drop55 = ["Furnace_condition2", "lower_limit_feed_org"]
@@ -520,9 +509,6 @@ def generate_attrs_328(df: pd.DataFrame) -> pd.DataFrame:
         ulf == llf_org, 0.0,
         np.where(llf < 0, llf, ulf)
     )
-    df["step_size_feed"] = np.where(
-        (df["lower_limit_feed"] + df["upper_limit_feed"]) == 0, 0.0, 1.0
-    )
     return df
 
 
@@ -593,19 +579,10 @@ def branch_19(df: pd.DataFrame) -> pd.DataFrame:
     cond_bias1_full = (biasing == 1) and (mixed_fm == sum_ulf)
 
     ulf = _col(df, "upper_limit_feed")
-    ssf = _col(df, "step_size_feed")
-    llf = _col(df, "lower_limit_feed")
 
     if cond_bias1_full:
         # lower_limit_feed = upper_limit_feed
         df["lower_limit_feed"] = ulf
-        # step_size_feed = if(step_size_feed==0, 0, 1)
-        df["step_size_feed"]   = np.where(ssf == 0, 0.0, 1.0)
-
-    # Final: if lower == upper → step = 0
-    new_llf = _col(df, "lower_limit_feed")
-    new_ulf = _col(df, "upper_limit_feed")
-    df["step_size_feed"] = np.where(new_llf == new_ulf, 0.0, _col(df, "step_size_feed"))
 
     return df
 
@@ -635,7 +612,6 @@ def _gen_attrs_1039(df: pd.DataFrame) -> pd.DataFrame:
     cv_up_thresh = _m("conversion_bias_threshold_upper_limit",  1)
     cv_lo_exp    = _m("conversion_lower_limit_expansion_max_limit", 0)
     cv_up_exp    = _m("conversion_upper_limit_expansion_max_limit", 0)
-    no_good_cnt  = int(_m("count_of_no_good_fur", 0))
 
     def _lo(row):
         oc = float(row.get("Overall_conversion", 0) or 0)
@@ -651,14 +627,8 @@ def _gen_attrs_1039(df: pd.DataFrame) -> pd.DataFrame:
                                 math.floor((cv_up_exp - oc) / 0.5) * 0.5))
         return 0.0
 
-    step = (5 if no_good_cnt < 6
-            else 3 if no_good_cnt == 6
-            else 1 if no_good_cnt == 9
-            else 2)
-
     df["conversion_lower_limit_in_grid"] = df.apply(_lo, axis=1)
     df["conversion_upper_limit_in_grid"] = df.apply(_up, axis=1)
-    df["step_size_conversion"]           = float(step)
     df["New_Feed_flow"]                  = _col(df, "Feed_flow")
     return df
 
@@ -815,14 +785,7 @@ def branch_biasing1(df: pd.DataFrame) -> pd.DataFrame:
             return ulf if row_id <= fur_step else 0.0
         return taken
 
-    def _step2(row):
-        ulf = float(row["upper_limit_feed"])
-        if id_for_balance >= fur_step:
-            return 0.0
-        return 1.0 if ulf > 1 else 0.0
-
     df["upper_limit_feed"] = df.apply(_up2, axis=1)
-    df["step_size_feed"]   = df.apply(_step2, axis=1)
     df["lower_limit_feed"] = np.where(df["step_size_feed"] > 0, 0.0, df["upper_limit_feed"])
     logger.info("AFTER GEN ATT :\n%s", df[["entity_name", 'overall_ranking', 'upper_limit_feed', 'step_size_feed']].to_string(index=False))
 

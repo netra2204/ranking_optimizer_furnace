@@ -141,17 +141,24 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
         return float(_m(name, default))
 
     # Margin in Fuel Gas (pressure control valve and pressure)
-    df["Margin_in_FG"] = 1
-
+    df["Margin_in_FG"] = np.where(
+        (col("fuel_gas_pressure_controlvalve_opening") < macro("fuel_gas_pressure_controlvalve_opening_limit")) &
+        (col("fuel_gas_pressure") < macro("fuel_gas_pressure_limit")),
+        1, 0
+    )
     # Margin in Steam – always 0 per formula
-    df["Margin_in_Steam"] = 1
+    df["Margin_in_Steam"] = 0
 
     pass_cols = [f"pass{n}_mixed_feed_flow_controller_opening" for n in range(1, NUM_PASSES + 1)]
     feed_limit = macro("margin_value_feed_limit")
-    df["Margin_in_Feed"] = 1
-    # Margin in Damper
-    df["Margin_in_Damper"] = 1
-
+    df["Margin_in_Feed"] = np.where(
+        np.all([col(p) < feed_limit for p in pass_cols], axis=0),
+        1, 0
+    )    # Margin in Damper
+    df["Margin_in_Damper"] = np.where(
+        col("damper_opening") < macro("damper_opening_limit"),
+        1, 0
+    )
     # Quench overhead gas temp margin (always 1)
     df["Quench_OD_Gas_temp_margin"] = 1
 
@@ -159,8 +166,10 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
     df["CGC_suction_pressure_margin"] = 1
 
     # C2 splitter DP
-    df["C2_splitter_dp_margin"] = 1
-    # print("LIMIT VALUE=", MACROS["c2_splitter_dp_limit"], macro("c2_splitter_dp_limit"))
+    df["C2_splitter_dp_margin"] = np.where(
+        col("c2_splitter_dp") < macro("c2_splitter_dp_limit"),
+        1, 0
+    )    # print("LIMIT VALUE=", MACROS["c2_splitter_dp_limit"], macro("c2_splitter_dp_limit"))
     # print("DP  VALUE=", df["c2_splitter_dp"].iloc[0])
 
     # C2 splitter bottom ethylene mol percent (always 1)
@@ -170,10 +179,18 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
     df["C2_splitter_reflux_pump_suction_temp_margin"] = 1
 
     # ERC governor + ethylene compressor speed
-    df["ERC_margin"] = 1
+    df["ERC_margin"] = np.where(
+        (col("erc_governor_opening") < macro("erc_governor_opening_limit")) &
+        (col("ethylene_compressure_suction_speed") < macro("ethylene_compressure_suction_speed_limit")),
+        1, 0
+    )
 
     # PRC governor + propylene compressor speed
-    df["PRC_margin"] = 1
+    df["PRC_margin"] = np.where(
+        (col("prc_governor_opening") < macro("prc_governor_opening_limit")) &
+        (col("propylene_compressure_suction_speed") < macro("propylene_compressure_suction_speed_limit")),
+        1, 0
+    )
 
     lower_limit = macro("margin_in_feed_lower_check_limit")
     df["Margin_in_Feed_lower_check"] = np.where(
@@ -741,6 +758,10 @@ def run(df_param: pd.DataFrame) -> pd.DataFrame:
     # Branch 5
     df = run_branch5(df)
     
+    # Static step-size constants injected here so module_06 no longer derives them.
+    df["step_size_feed"]       = 1
+    df["step_size_conversion"] = 0.5
+
     STORE["df_preprocessed"] = df.copy()
     logger.info("PRE-PROCESSING complete – %d rows × %d cols",
                 len(df), len(df.columns))

@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # )
 EXCEL_CONFIG_PATH: str | None = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
+    "..",
     "Python-Inputs",
     "config_overrides.xlsx"
 )
@@ -186,6 +187,7 @@ _macros_overrides = {k: v for k, v in _overrides.items() if k in _MACROS_OVERRID
 DB_CONFIG = {
     "repository_entry": os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
+        "..",
         "Python-Inputs",
         "parameterization-ranking-data.xlsx"
     ),

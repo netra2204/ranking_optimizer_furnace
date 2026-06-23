@@ -873,26 +873,24 @@ def _build_conv_ranges(n: int) -> List[List[float]]:
     Build per-furnace conversion-delta value lists from
     Grid_Row_i_lower/upper_conversion_limit, Grid_Row_i_step_size_conversion.
 
-    Mirrors the `optimize_parameters_grid` operator "Conversion inside Feed
-    grid (2)" (.rmp lines 7008-7016), whose value syntax is
-        [%{Grid_Row_i_lower_conversion_limit};
-         %{Grid_Row_i_upper_conversion_limit};
-         %{Grid_Row_i_step_size_conversion};linear]
-
-    *** RapidMiner semantics (THE FIX): the 3rd field is the NUMBER OF STEPS,
-    not a step size -> `steps+1` evenly-spaced values
-        value_k = lo + k*(hi-lo)/steps     for k = 0 .. steps
-    (identical convention to the feed grid's _linear_range in Chunk A).
+    step_size_conversion is now a true incremental step (injected as 0.5 from
+    module_04). All values in [lower, upper] are valid — no exclusions.
+    step <= 0 or hi <= lo collapses to [lo] (furnace locked).
     """
     ranges = []
     for i in range(1, n + 1):
         lo   = _m(f"Grid_Row_{i}_lower_conversion_limit", 0.0)
         hi   = _m(f"Grid_Row_{i}_upper_conversion_limit", 0.0)
-        steps = int(round(_m(f"Grid_Row_{i}_step_size_conversion", 0.0)))
-        if steps <= 0 or hi <= lo:
+        step = _m(f"Grid_Row_{i}_step_size_conversion", 0.0)
+        if step <= 0 or hi <= lo:
             ranges.append([round(lo, 6)])
             continue
-        ranges.append([round(lo + k * (hi - lo) / steps, 6) for k in range(steps + 1)])
+        vals = []
+        v = lo
+        while v <= hi + 1e-9:
+            vals.append(round(v, 6))
+            v += step
+        ranges.append(vals if vals else [round(lo, 6)])
     # Pad to NUM_FURNACES with [0.0]
     while len(ranges) < NUM_FURNACES:
         ranges.append([0.0])

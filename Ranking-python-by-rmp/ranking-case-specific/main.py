@@ -31,31 +31,7 @@ import logging
 import sys
 import pandas as pd
 from datetime import datetime
-
 import os
-# sys.path.append(r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\ranking-common-process")
-# import main as folder1_main
-# macros_f1   = folder1_main.build_default_macros()
-# store_f1    = folder1_main.build_io_store(
-#     tag_parameter_mapping=pd.DataFrame(),
-#         text_code_mapping=pd.DataFrame(),
-#         ccp_status=pd.DataFrame(),
-#         entity=pd.DataFrame(),
-#         parameters=pd.DataFrame(),
-#         entity_parameter=pd.DataFrame(),
-#         tag=pd.DataFrame(),
-#         furnace_ranking_info=pd.DataFrame(),
-# )
-# input_example_set =  pd.DataFrame()           #input of common ranking parameterization
-# # This is the result from folder1
-# result_df = folder1_main.run_process(input_example_set, macros_f1, store_f1)
-
-# ── Now continue with folder2's own pipeline ─────────────────────────
-from config import MACROS, STORE, INPUTS, DB_CONFIG   # folder2's config
-
-# result_df is now your input — use it however folder2 needs it
-# e.g. pass it to folder2's own processing functions
-# ── Global state ──────────────────────────────────────────────────────────────
 from config import MACROS, STORE
 # ── Modules ───────────────────────────────────────────────────────────────────
 import module_01_inputs
@@ -318,6 +294,7 @@ def _parse_args():
         metavar="PATH",
         default=os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
+        "..",
         "Results",
         "long-format-result.xlsx"
         ),
@@ -343,7 +320,7 @@ def main():
     # Re-configure log level
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
-    _base = os.path.dirname(os.path.abspath(__file__))
+    _base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
     try:
         load_store_data(
