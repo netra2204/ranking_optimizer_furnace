@@ -81,25 +81,3 @@ def build_io_store(**objects: pd.DataFrame) -> IOStore:
       furnace_ranking_info  : [parameter_name, sort_type, parameter_weightage, ...]
     """
     return IOStore(objects)
-
-
-if __name__ == "__main__":
-    # ------------------------------------------------------------------
-    # Example invocation skeleton. Replace the empty frames with the real
-    # input ExampleSet and the real Remember-ed objects from the parent
-    # process. (No execution/testing performed here per request.)
-    # ------------------------------------------------------------------
-    macros = build_default_macros()
-    store = build_io_store(
-        tag_parameter_mapping=pd.DataFrame(),
-        text_code_mapping=pd.DataFrame(),
-        ccp_status=pd.DataFrame(),
-        entity=pd.DataFrame(),
-        parameters=pd.DataFrame(),
-        entity_parameter=pd.DataFrame(),
-        tag=pd.DataFrame(),
-        furnace_ranking_info=pd.DataFrame(),
-    )
-    input_example_set = pd.DataFrame()      # <- the upstream wide tag table
-    LOG.info("This module is the importable replica; wire real inputs to run.")
-    # result = run_process(input_example_set, macros, store)
