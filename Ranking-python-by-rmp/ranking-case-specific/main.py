@@ -53,6 +53,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("main")
 print("LOGGING IMPORTED")
+
+try:
+    from pandas._libs.parsers import STR_NA_VALUES as _PD_NA
+    _NA_KEEP_NULL = list(_PD_NA - {"null", "NULL", "Null"})
+except Exception:                                   # pragma: no cover - version drift
+    _NA_KEEP_NULL = ["", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN",
+                     "-NaN", "-nan", "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA",
+                     "NaN", "None", "n/a", "nan"]
 def load_store_data(
     tag_parameter_mapping_csv: str = None,
     ropt_extract_macro_values_csv: str = None,
@@ -79,12 +87,15 @@ def load_store_data(
             # Store empty DataFrame as safe fallback
             STORE[store_key] = pd.DataFrame()
             logger.info("STORE['%s'] → empty (no path provided)", store_key)
-        elif path.endswith(".xlsx") or path.endswith(".xls"):
-            STORE[store_key] = pd.read_excel(path)
-            logger.info("STORE['%s'] → loaded from '%s' (%d rows)",
-                        store_key, path, len(STORE[store_key]))
         else:
-            STORE[store_key] = pd.read_csv(path)
+            # Preserve the literal "null"/"NULL" text in parameter_name for the
+            # tag_parameter_mapping file only; all other files use pandas defaults.
+            na_kwargs = ({"keep_default_na": False, "na_values": _NA_KEEP_NULL}
+                         if store_key == "tag_parameter_mapping" else {})
+            if path.endswith(".xlsx") or path.endswith(".xls"):
+                STORE[store_key] = pd.read_excel(path, **na_kwargs)
+            else:
+                STORE[store_key] = pd.read_csv(path, **na_kwargs)
             logger.info("STORE['%s'] → loaded from '%s' (%d rows)",
                         store_key, path, len(STORE[store_key]))
             
@@ -95,6 +106,7 @@ def run_pipeline(
     csv_path: str = None,
     prev_hour_csv_path: str = None,
     return_wide: bool = False,
+    input_df: pd.DataFrame = None,
 ) -> pd.DataFrame:
     """
     Run the complete furnace-ranking optimisation pipeline.
@@ -104,6 +116,10 @@ def run_pipeline(
     csv_path : str
         Path to the main input CSV (join-data).
         If None, falls back to DB_CONFIG["repository_entry"] + ".csv".
+    input_df : pd.DataFrame, optional
+        In-memory input DataFrame. When provided, it is used directly and the
+        csv_path / DB read is bypassed (e.g. the common-process result handed
+        off from the orchestrator).
     prev_hour_csv_path : str, optional
         Path to the previous hour's ranking output CSV.
         Used by the past-hour logic for deviation detection.
@@ -123,17 +139,22 @@ def run_pipeline(
     logger.info("=" * 70)
 
     # ── Step 1: INPUTS ────────────────────────────────────────────────────────
-    df_main = module_01_inputs.run(csv_path=csv_path)
+    df_main = module_01_inputs.run(csv_path=csv_path, input_df=input_df)
 
     # ── Step 2: INITIALIZATION ────────────────────────────────────────────────
     # df_main = module_02_initialization.run(df_main)
 
     # ── Step 3: PARAMETERIZATION ──────────────────────────────────────────────
-    # df_param = module_03_parameterization.run(df_main)
-
+    df_param = module_03_parameterization.run(df_main)
+    df_param.to_excel(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "Results",
+        "united-parameterization.xlsx"
+    ))
     # ── Step 4: PRE-PROCESSING ────────────────────────────────────────────────
     # Bypassing initialization & parameterization — data already in wide format
-    df_param = df_main.copy()
+    # df_param = df_main.copy()
     df_preprocessed = module_04_preprocessing.run(df_param)
     # df_preprocessed.to_excel(r"C:\Users\User\Documents\POC\prepro-output.xlsx", index=False)
     # logger.info("pre-pro output written")

@@ -1,0 +1,1434 @@
+<?xml version="1.0" encoding="UTF-8"?><process version="12.1.001">
+  <context>
+    <input/>
+    <output/>
+    <macros/>
+  </context>
+  <operator activated="true" class="process" compatibility="12.1.001" expanded="true" name="Process">
+    <parameter key="logverbosity" value="init"/>
+    <parameter key="random_seed" value="2001"/>
+    <parameter key="send_mail" value="never"/>
+    <parameter key="notification_email" value=""/>
+    <parameter key="process_duration_for_mail" value="30"/>
+    <parameter key="encoding" value="SYSTEM"/>
+    <process expanded="true">
+      <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="82" name="parameterization" width="90" x="112" y="85">
+        <process expanded="true">
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="68" name="log start (11)" width="90" x="45" y="340">
+            <process expanded="true">
+              <operator activated="true" class="utility:create_exampleset" compatibility="12.1.001" expanded="true" height="68" name="Create ExampleSet (37)" width="90" x="45" y="136">
+                <parameter key="generator_type" value="attribute functions"/>
+                <parameter key="number_of_examples" value="1"/>
+                <parameter key="use_stepsize" value="false"/>
+                <list key="function_descriptions">
+                  <parameter key="timestamp" value="date_now()"/>
+                  <parameter key="level" value="%{process_name}"/>
+                  <parameter key="process_name" value="&quot;Parameterization&quot;"/>
+                  <parameter key="category" value="&quot;RM&quot;"/>
+                  <parameter key="case_id" value="%{case_id}"/>
+                  <parameter key="info" value="&quot;startedAt&quot;"/>
+                  <parameter key="model_id" value="%{ranking_model_id}"/>
+                </list>
+                <parameter key="add_id_attribute" value="false"/>
+                <list key="numeric_series_configuration"/>
+                <list key="date_series_configuration"/>
+                <list key="date_series_configuration (interval)"/>
+                <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+                <parameter key="time_zone" value="SYSTEM"/>
+                <parameter key="column_separator" value=","/>
+                <parameter key="parse_all_as_nominal" value="false"/>
+                <parameter key="decimal_point_character" value="."/>
+                <parameter key="trim_attribute_names" value="true"/>
+              </operator>
+              <operator activated="true" class="productivity:execute_process" compatibility="12.1.001" expanded="true" height="68" name="Execute feature_log (12)" width="90" x="179" y="136">
+                <parameter key="process_location" value="../../01_Common_Processes/feature_log_trg"/>
+                <parameter key="use_input" value="true"/>
+                <parameter key="store_output" value="false"/>
+                <parameter key="propagate_metadata_recursively" value="true"/>
+                <parameter key="cache_process" value="true"/>
+                <list key="macros"/>
+                <parameter key="fail_for_unknown_macros" value="true"/>
+              </operator>
+              <connect from_op="Create ExampleSet (37)" from_port="output" to_op="Execute feature_log (12)" to_port="input 1"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+              <description align="center" color="yellow" colored="false" height="105" resized="false" width="180" x="67" y="593">Type your comment</description>
+            </process>
+          </operator>
+          <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="82" name="Branch (38)" width="90" x="45" y="34">
+            <parameter key="condition_type" value="macro_defined"/>
+            <parameter key="condition_value" value="Ranking_Feed_YSB"/>
+            <parameter key="expression" value="%{case_id}==161"/>
+            <parameter key="io_object" value="ANOVAMatrix"/>
+            <parameter key="return_inner_output" value="true"/>
+            <process expanded="true">
+              <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="82" name="Branch (11)" width="90" x="112" y="34">
+                <parameter key="condition_type" value="expression"/>
+                <parameter key="expression" value="%{Ranking_Feed_YSB} == &quot;active&quot;"/>
+                <parameter key="io_object" value="ANOVAMatrix"/>
+                <parameter key="return_inner_output" value="true"/>
+                <process expanded="true">
+                  <operator activated="true" class="concurrency:loop" compatibility="12.1.001" expanded="true" height="82" name="Loop (6)" width="90" x="112" y="34">
+                    <parameter key="number_of_iterations" value="8"/>
+                    <parameter key="iteration_macro" value="iteration"/>
+                    <parameter key="reuse_results" value="true"/>
+                    <parameter key="enable_parallel_execution" value="true"/>
+                    <process expanded="true">
+                      <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (29)" width="90" x="112" y="34">
+                        <list key="function_descriptions">
+                          <parameter key="FURN%{iteration}_Furnace_Mode" value="if(attribute(&quot;FURN&quot;+%{iteration}+&quot;_Furnace_Mode&quot;)==16,7,attribute(&quot;FURN&quot;+%{iteration}+&quot;_Furnace_Mode&quot;))"/>
+                        </list>
+                        <parameter key="keep_all_columns" value="true"/>
+                        <parameter key="default_time_zone" value="Asia/Riyadh"/>
+                      </operator>
+                      <connect from_port="input 1" to_op="Generate Attributes (29)" to_port="table input"/>
+                      <connect from_op="Generate Attributes (29)" from_port="table output" to_port="output 1"/>
+                      <portSpacing port="source_input 1" spacing="0"/>
+                      <portSpacing port="source_input 2" spacing="0"/>
+                      <portSpacing port="sink_output 1" spacing="0"/>
+                      <portSpacing port="sink_output 2" spacing="0"/>
+                    </process>
+                  </operator>
+                  <connect from_port="condition" to_op="Loop (6)" to_port="input 1"/>
+                  <connect from_op="Loop (6)" from_port="output 1" to_port="input 1"/>
+                  <portSpacing port="source_condition" spacing="0"/>
+                  <portSpacing port="source_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 2" spacing="0"/>
+                </process>
+                <process expanded="true">
+                  <connect from_port="condition" to_port="input 1"/>
+                  <portSpacing port="source_condition" spacing="0"/>
+                  <portSpacing port="source_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 2" spacing="0"/>
+                </process>
+              </operator>
+              <connect from_port="condition" to_op="Branch (11)" to_port="condition"/>
+              <connect from_op="Branch (11)" from_port="input 1" to_port="input 1"/>
+              <portSpacing port="source_condition" spacing="0"/>
+              <portSpacing port="source_input 1" spacing="0"/>
+              <portSpacing port="sink_input 1" spacing="0"/>
+              <portSpacing port="sink_input 2" spacing="0"/>
+            </process>
+            <process expanded="true">
+              <connect from_port="condition" to_port="input 1"/>
+              <portSpacing port="source_condition" spacing="0"/>
+              <portSpacing port="source_input 1" spacing="0"/>
+              <portSpacing port="sink_input 1" spacing="0"/>
+              <portSpacing port="sink_input 2" spacing="0"/>
+            </process>
+          </operator>
+          <operator activated="true" class="numerical_to_real" compatibility="12.1.001" expanded="true" height="82" name="Numerical to Real (7)" width="90" x="179" y="34">
+            <parameter key="attribute_filter_type" value="all"/>
+            <parameter key="attribute" value=""/>
+            <parameter key="attributes" value=""/>
+            <parameter key="use_except_expression" value="false"/>
+            <parameter key="value_type" value="numeric"/>
+            <parameter key="use_value_type_exception" value="false"/>
+            <parameter key="except_value_type" value="real"/>
+            <parameter key="block_type" value="value_series"/>
+            <parameter key="use_block_type_exception" value="false"/>
+            <parameter key="except_block_type" value="value_series_end"/>
+            <parameter key="invert_selection" value="false"/>
+            <parameter key="include_special_attributes" value="false"/>
+          </operator>
+          <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (3)" width="90" x="313" y="136">
+            <parameter key="name" value="tag_parameter_mapping"/>
+            <parameter key="io_object" value="ExampleSet"/>
+            <parameter key="remove_from_store" value="false"/>
+          </operator>
+          <operator activated="true" class="de_pivot" compatibility="12.1.001" expanded="true" height="82" name="De-Pivot (7)" origin="GENERATED_TUTORIAL" width="90" x="313" y="34">
+            <list key="attribute_name">
+              <parameter key="value" value="^(?!Timestamp$).+"/>
+            </list>
+            <parameter key="index_attribute" value="tag_name"/>
+            <parameter key="create_nominal_index" value="true"/>
+            <parameter key="keep_missings" value="true"/>
+          </operator>
+          <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (2)" width="90" x="447" y="34">
+            <parameter key="remove_double_attributes" value="true"/>
+            <parameter key="join_type" value="inner"/>
+            <parameter key="use_id_attribute_as_key" value="false"/>
+            <list key="key_attributes">
+              <parameter key="tag_name" value="short_name"/>
+            </list>
+            <parameter key="keep_both_join_attributes" value="false"/>
+          </operator>
+          <operator activated="true" class="remove_duplicates" compatibility="12.1.001" expanded="true" height="103" name="Remove Duplicates (9)" width="90" x="581" y="34">
+            <parameter key="attribute_filter_type" value="subset"/>
+            <parameter key="attribute" value=""/>
+            <parameter key="attributes" value="tag_name|Timestamp"/>
+            <parameter key="use_except_expression" value="false"/>
+            <parameter key="value_type" value="attribute_value"/>
+            <parameter key="use_value_type_exception" value="false"/>
+            <parameter key="except_value_type" value="time"/>
+            <parameter key="block_type" value="attribute_block"/>
+            <parameter key="use_block_type_exception" value="false"/>
+            <parameter key="except_block_type" value="value_matrix_row_start"/>
+            <parameter key="invert_selection" value="false"/>
+            <parameter key="include_special_attributes" value="false"/>
+            <parameter key="treat_missing_values_as_duplicates" value="false"/>
+            <description align="center" color="transparent" colored="false" width="126">tag_name&lt;br/&gt;TImestamp</description>
+          </operator>
+          <operator activated="true" class="blending:pivot" compatibility="12.1.001" expanded="true" height="103" name="Pivot (9)" width="90" x="715" y="34">
+            <parameter key="group_by_attributes" value="Timestamp|entity_name"/>
+            <parameter key="column_grouping_attribute" value="parameter_name"/>
+            <list key="aggregation_attributes">
+              <parameter key="value" value="first"/>
+            </list>
+            <parameter key="use_default_aggregation" value="false"/>
+            <parameter key="default_aggregation_function" value="first"/>
+          </operator>
+          <operator activated="true" class="rename_by_replacing" compatibility="12.1.001" expanded="true" height="82" name="Rename by Replacing (12)" width="90" x="849" y="34">
+            <parameter key="attribute_filter_type" value="all"/>
+            <parameter key="attribute" value=""/>
+            <parameter key="attributes" value=""/>
+            <parameter key="use_except_expression" value="false"/>
+            <parameter key="value_type" value="attribute_value"/>
+            <parameter key="use_value_type_exception" value="false"/>
+            <parameter key="except_value_type" value="time"/>
+            <parameter key="block_type" value="attribute_block"/>
+            <parameter key="use_block_type_exception" value="false"/>
+            <parameter key="except_block_type" value="value_matrix_row_start"/>
+            <parameter key="invert_selection" value="false"/>
+            <parameter key="include_special_attributes" value="false"/>
+            <parameter key="replace_what" value="first\(value\)_"/>
+          </operator>
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="68" name="log end (6)" width="90" x="849" y="340">
+            <process expanded="true">
+              <operator activated="true" class="utility:create_exampleset" compatibility="12.1.001" expanded="true" height="68" name="Create ExampleSet (79)" width="90" x="45" y="136">
+                <parameter key="generator_type" value="attribute functions"/>
+                <parameter key="number_of_examples" value="1"/>
+                <parameter key="use_stepsize" value="false"/>
+                <list key="function_descriptions">
+                  <parameter key="timestamp" value="date_now()"/>
+                  <parameter key="level" value="%{process_name}"/>
+                  <parameter key="process_name" value="&quot;Parameterization&quot;"/>
+                  <parameter key="category" value="&quot;RM&quot;"/>
+                  <parameter key="case_id" value="%{case_id}"/>
+                  <parameter key="info" value="&quot;endedAt&quot;"/>
+                  <parameter key="model_id" value="%{ranking_model_id}"/>
+                </list>
+                <parameter key="add_id_attribute" value="false"/>
+                <list key="numeric_series_configuration"/>
+                <list key="date_series_configuration"/>
+                <list key="date_series_configuration (interval)"/>
+                <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+                <parameter key="time_zone" value="SYSTEM"/>
+                <parameter key="column_separator" value=","/>
+                <parameter key="parse_all_as_nominal" value="false"/>
+                <parameter key="decimal_point_character" value="."/>
+                <parameter key="trim_attribute_names" value="true"/>
+              </operator>
+              <operator activated="true" class="productivity:execute_process" compatibility="12.1.001" expanded="true" height="68" name="Execute feature_log (23)" width="90" x="179" y="136">
+                <parameter key="process_location" value="../../01_Common_Processes/feature_log_trg"/>
+                <parameter key="use_input" value="true"/>
+                <parameter key="store_output" value="false"/>
+                <parameter key="propagate_metadata_recursively" value="true"/>
+                <parameter key="cache_process" value="true"/>
+                <list key="macros"/>
+                <parameter key="fail_for_unknown_macros" value="true"/>
+              </operator>
+              <connect from_op="Create ExampleSet (79)" from_port="output" to_op="Execute feature_log (23)" to_port="input 1"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+            </process>
+          </operator>
+          <connect from_port="in 1" to_op="Branch (38)" to_port="condition"/>
+          <connect from_op="Branch (38)" from_port="input 1" to_op="Numerical to Real (7)" to_port="example set input"/>
+          <connect from_op="Numerical to Real (7)" from_port="example set output" to_op="De-Pivot (7)" to_port="example set input"/>
+          <connect from_op="Recall (3)" from_port="result" to_op="Join (2)" to_port="right"/>
+          <connect from_op="De-Pivot (7)" from_port="example set output" to_op="Join (2)" to_port="left"/>
+          <connect from_op="Join (2)" from_port="join" to_op="Remove Duplicates (9)" to_port="example set input"/>
+          <connect from_op="Remove Duplicates (9)" from_port="example set output" to_op="Pivot (9)" to_port="input"/>
+          <connect from_op="Pivot (9)" from_port="output" to_op="Rename by Replacing (12)" to_port="example set input"/>
+          <connect from_op="Rename by Replacing (12)" from_port="example set output" to_port="out 1"/>
+          <portSpacing port="source_in 1" spacing="0"/>
+          <portSpacing port="source_in 2" spacing="0"/>
+          <portSpacing port="sink_out 1" spacing="0"/>
+          <portSpacing port="sink_out 2" spacing="0"/>
+        </process>
+        <description align="center" color="transparent" colored="false" width="126">This block parametrized the processed tags depending upon the parameter provided for each furnace and system entity</description>
+      </operator>
+      <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="82" name="ranking" width="90" x="313" y="85">
+        <process expanded="true">
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="68" name="log start (12)" width="90" x="45" y="493">
+            <process expanded="true">
+              <operator activated="true" class="utility:create_exampleset" compatibility="12.1.001" expanded="true" height="68" name="Create ExampleSet (38)" width="90" x="45" y="136">
+                <parameter key="generator_type" value="attribute functions"/>
+                <parameter key="number_of_examples" value="1"/>
+                <parameter key="use_stepsize" value="false"/>
+                <list key="function_descriptions">
+                  <parameter key="timestamp" value="date_now()"/>
+                  <parameter key="level" value="%{process_name}"/>
+                  <parameter key="process_name" value="&quot;Ranking&quot;"/>
+                  <parameter key="category" value="&quot;RM&quot;"/>
+                  <parameter key="case_id" value="%{case_id}"/>
+                  <parameter key="info" value="&quot;startedAt&quot;"/>
+                  <parameter key="model_id" value="%{ranking_model_id}"/>
+                </list>
+                <parameter key="add_id_attribute" value="false"/>
+                <list key="numeric_series_configuration"/>
+                <list key="date_series_configuration"/>
+                <list key="date_series_configuration (interval)"/>
+                <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+                <parameter key="time_zone" value="SYSTEM"/>
+                <parameter key="column_separator" value=","/>
+                <parameter key="parse_all_as_nominal" value="false"/>
+                <parameter key="decimal_point_character" value="."/>
+                <parameter key="trim_attribute_names" value="true"/>
+              </operator>
+              <operator activated="true" class="productivity:execute_process" compatibility="12.1.001" expanded="true" height="68" name="Execute feature_log (13)" width="90" x="179" y="136">
+                <parameter key="process_location" value="../../01_Common_Processes/feature_log_trg"/>
+                <parameter key="use_input" value="true"/>
+                <parameter key="store_output" value="false"/>
+                <parameter key="propagate_metadata_recursively" value="true"/>
+                <parameter key="cache_process" value="true"/>
+                <list key="macros"/>
+                <parameter key="fail_for_unknown_macros" value="true"/>
+              </operator>
+              <connect from_op="Create ExampleSet (38)" from_port="output" to_op="Execute feature_log (13)" to_port="input 1"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+              <description align="center" color="yellow" colored="false" height="105" resized="false" width="180" x="67" y="593">Type your comment</description>
+            </process>
+          </operator>
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="82" name="text_code_mapping (2)" width="90" x="112" y="34">
+            <process expanded="true">
+              <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (5)" width="90" x="45" y="136">
+                <parameter key="name" value="text_code_mapping"/>
+                <parameter key="io_object" value="ExampleSet"/>
+                <parameter key="remove_from_store" value="false"/>
+              </operator>
+              <operator activated="true" class="blending:rename" compatibility="12.1.001" expanded="true" height="82" name="Rename (4)" width="90" x="179" y="85">
+                <list key="rename attributes">
+                  <parameter key="text" value="furnace_status_text"/>
+                </list>
+                <parameter key="from_attribute" value=""/>
+                <parameter key="to_attribute" value=""/>
+              </operator>
+              <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (6)" width="90" x="313" y="34">
+                <parameter key="remove_double_attributes" value="true"/>
+                <parameter key="join_type" value="left"/>
+                <parameter key="use_id_attribute_as_key" value="false"/>
+                <list key="key_attributes">
+                  <parameter key="%{furnace_status}" value="code"/>
+                </list>
+                <parameter key="keep_both_join_attributes" value="false"/>
+              </operator>
+              <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (6)" width="90" x="313" y="136">
+                <parameter key="name" value="text_code_mapping"/>
+                <parameter key="io_object" value="ExampleSet"/>
+                <parameter key="remove_from_store" value="false"/>
+              </operator>
+              <operator activated="true" class="blending:rename" compatibility="12.1.001" expanded="true" height="82" name="Rename (5)" width="90" x="447" y="85">
+                <list key="rename attributes">
+                  <parameter key="text" value="%{ranking_splitter}_text"/>
+                </list>
+                <parameter key="from_attribute" value=""/>
+                <parameter key="to_attribute" value=""/>
+              </operator>
+              <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (7)" width="90" x="581" y="34">
+                <parameter key="remove_double_attributes" value="true"/>
+                <parameter key="join_type" value="left"/>
+                <parameter key="use_id_attribute_as_key" value="false"/>
+                <list key="key_attributes">
+                  <parameter key="%{ranking_splitter}" value="code"/>
+                </list>
+                <parameter key="keep_both_join_attributes" value="false"/>
+              </operator>
+              <connect from_port="in 1" to_op="Join (6)" to_port="left"/>
+              <connect from_op="Recall (5)" from_port="result" to_op="Rename (4)" to_port="example set input"/>
+              <connect from_op="Rename (4)" from_port="example set output" to_op="Join (6)" to_port="right"/>
+              <connect from_op="Join (6)" from_port="join" to_op="Join (7)" to_port="left"/>
+              <connect from_op="Recall (6)" from_port="result" to_op="Rename (5)" to_port="example set input"/>
+              <connect from_op="Rename (5)" from_port="example set output" to_op="Join (7)" to_port="right"/>
+              <connect from_op="Join (7)" from_port="join" to_port="out 1"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="source_in 2" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+              <portSpacing port="sink_out 2" spacing="0"/>
+              <description align="center" color="yellow" colored="false" height="105" resized="false" width="180" x="1084" y="204">Type your comment</description>
+            </process>
+          </operator>
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="103" name="furnace_selection (2)" width="90" x="246" y="136">
+            <process expanded="true">
+              <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="103" name="Model_Skip_Filtering" width="90" x="45" y="136">
+                <parameter key="condition_type" value="macro_defined"/>
+                <parameter key="condition_value" value="furnace_system_model_skip_filter"/>
+                <parameter key="expression" value=""/>
+                <parameter key="io_object" value="ANOVAMatrix"/>
+                <parameter key="return_inner_output" value="true"/>
+                <process expanded="true">
+                  <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="103" name="Model_Skip_Filtering_" width="90" x="112" y="34">
+                    <parameter key="condition_type" value="expression"/>
+                    <parameter key="expression" value="%{furnace_system_model_skip_filter}==&quot;active&quot;"/>
+                    <parameter key="io_object" value="ANOVAMatrix"/>
+                    <parameter key="return_inner_output" value="true"/>
+                    <process expanded="true">
+                      <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (8)" width="90" x="45" y="136">
+                        <parameter key="name" value="ccp_status"/>
+                        <parameter key="io_object" value="ExampleSet"/>
+                        <parameter key="remove_from_store" value="false"/>
+                      </operator>
+                      <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (9)" width="90" x="45" y="238">
+                        <parameter key="name" value="entity"/>
+                        <parameter key="io_object" value="ExampleSet"/>
+                        <parameter key="remove_from_store" value="false"/>
+                      </operator>
+                      <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (3)" width="90" x="179" y="238">
+                        <parameter key="type" value="include attributes"/>
+                        <parameter key="attribute_filter_type" value="a subset"/>
+                        <parameter key="select_attribute" value=""/>
+                        <parameter key="select_subset" value="entity_id␞entity_name"/>
+                        <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                      </operator>
+                      <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (15)" width="90" x="313" y="136">
+                        <parameter key="remove_double_attributes" value="true"/>
+                        <parameter key="join_type" value="left"/>
+                        <parameter key="use_id_attribute_as_key" value="false"/>
+                        <list key="key_attributes">
+                          <parameter key="entity_id" value="entity_id"/>
+                        </list>
+                        <parameter key="keep_both_join_attributes" value="false"/>
+                      </operator>
+                      <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (17)" width="90" x="447" y="136">
+                        <parameter key="type" value="include attributes"/>
+                        <parameter key="attribute_filter_type" value="a subset"/>
+                        <parameter key="select_attribute" value=""/>
+                        <parameter key="select_subset" value="Timestamp␞ccp_status␞entity_name"/>
+                        <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                      </operator>
+                      <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (17)" width="90" x="648" y="34">
+                        <parameter key="remove_double_attributes" value="true"/>
+                        <parameter key="join_type" value="inner"/>
+                        <parameter key="use_id_attribute_as_key" value="false"/>
+                        <list key="key_attributes">
+                          <parameter key="entity_name" value="entity_name"/>
+                          <parameter key="Timestamp" value="Timestamp"/>
+                        </list>
+                        <parameter key="keep_both_join_attributes" value="false"/>
+                      </operator>
+                      <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (6)" width="90" x="782" y="34">
+                        <parameter key="parameter_expression" value=""/>
+                        <parameter key="condition_class" value="custom_filters"/>
+                        <parameter key="invert_filter" value="false"/>
+                        <list key="filters_list">
+                          <parameter key="filters_entry_key" value="ccp_status.ne.0"/>
+                        </list>
+                        <parameter key="filters_logic_and" value="true"/>
+                        <parameter key="filters_check_metadata" value="true"/>
+                      </operator>
+                      <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (24)" width="90" x="916" y="136">
+                        <parameter key="type" value="exclude attributes"/>
+                        <parameter key="attribute_filter_type" value="a subset"/>
+                        <parameter key="select_attribute" value=""/>
+                        <parameter key="select_subset" value="entity_id␞ccp_status"/>
+                        <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                      </operator>
+                      <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (16)" width="90" x="916" y="34">
+                        <parameter key="type" value="exclude attributes"/>
+                        <parameter key="attribute_filter_type" value="a subset"/>
+                        <parameter key="select_attribute" value=""/>
+                        <parameter key="select_subset" value="entity_id␞ccp_status"/>
+                        <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                      </operator>
+                      <connect from_port="condition" to_op="Join (17)" to_port="left"/>
+                      <connect from_op="Recall (8)" from_port="result" to_op="Join (15)" to_port="left"/>
+                      <connect from_op="Recall (9)" from_port="result" to_op="Select Attributes (3)" to_port="example set input"/>
+                      <connect from_op="Select Attributes (3)" from_port="example set output" to_op="Join (15)" to_port="right"/>
+                      <connect from_op="Join (15)" from_port="join" to_op="Select Attributes (17)" to_port="example set input"/>
+                      <connect from_op="Select Attributes (17)" from_port="example set output" to_op="Join (17)" to_port="right"/>
+                      <connect from_op="Join (17)" from_port="join" to_op="Filter Examples (6)" to_port="example set input"/>
+                      <connect from_op="Filter Examples (6)" from_port="example set output" to_op="Select Attributes (16)" to_port="example set input"/>
+                      <connect from_op="Filter Examples (6)" from_port="unmatched example set" to_op="Select Attributes (24)" to_port="example set input"/>
+                      <connect from_op="Select Attributes (24)" from_port="example set output" to_port="input 2"/>
+                      <connect from_op="Select Attributes (16)" from_port="example set output" to_port="input 1"/>
+                      <portSpacing port="source_condition" spacing="0"/>
+                      <portSpacing port="source_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 2" spacing="0"/>
+                      <portSpacing port="sink_input 3" spacing="0"/>
+                    </process>
+                    <process expanded="true">
+                      <connect from_port="condition" to_port="input 1"/>
+                      <portSpacing port="source_condition" spacing="0"/>
+                      <portSpacing port="source_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 2" spacing="0"/>
+                      <portSpacing port="sink_input 3" spacing="0"/>
+                    </process>
+                  </operator>
+                  <connect from_port="condition" to_op="Model_Skip_Filtering_" to_port="condition"/>
+                  <connect from_op="Model_Skip_Filtering_" from_port="input 1" to_port="input 1"/>
+                  <connect from_op="Model_Skip_Filtering_" from_port="input 2" to_port="input 2"/>
+                  <portSpacing port="source_condition" spacing="0"/>
+                  <portSpacing port="source_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 2" spacing="0"/>
+                  <portSpacing port="sink_input 3" spacing="0"/>
+                </process>
+                <process expanded="true">
+                  <connect from_port="condition" to_port="input 1"/>
+                  <portSpacing port="source_condition" spacing="0"/>
+                  <portSpacing port="source_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 2" spacing="0"/>
+                  <portSpacing port="sink_input 3" spacing="0"/>
+                </process>
+              </operator>
+              <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="103" name="Manual_Filtering" width="90" x="246" y="34">
+                <parameter key="condition_type" value="macro_defined"/>
+                <parameter key="condition_value" value="furnace_system_manual_filter"/>
+                <parameter key="expression" value=""/>
+                <parameter key="io_object" value="ANOVAMatrix"/>
+                <parameter key="return_inner_output" value="true"/>
+                <process expanded="true">
+                  <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="103" name="Manual_Filtering_" width="90" x="179" y="34">
+                    <parameter key="condition_type" value="expression"/>
+                    <parameter key="expression" value="%{furnace_system_manual_filter}==&quot;active&quot;"/>
+                    <parameter key="io_object" value="ANOVAMatrix"/>
+                    <parameter key="return_inner_output" value="true"/>
+                    <process expanded="true">
+                      <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="82" name="Subprocess (2)" width="90" x="45" y="136">
+                        <process expanded="true">
+                          <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (13)" width="90" x="45" y="34">
+                            <parameter key="name" value="parameters"/>
+                            <parameter key="io_object" value="ExampleSet"/>
+                            <parameter key="remove_from_store" value="false"/>
+                          </operator>
+                          <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (16)" width="90" x="45" y="136">
+                            <parameter key="name" value="entity_parameter"/>
+                            <parameter key="io_object" value="ExampleSet"/>
+                            <parameter key="remove_from_store" value="false"/>
+                          </operator>
+                          <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (21)" width="90" x="179" y="34">
+                            <parameter key="remove_double_attributes" value="true"/>
+                            <parameter key="join_type" value="inner"/>
+                            <parameter key="use_id_attribute_as_key" value="false"/>
+                            <list key="key_attributes">
+                              <parameter key="parameter_id" value="parameter_id"/>
+                            </list>
+                            <parameter key="keep_both_join_attributes" value="false"/>
+                          </operator>
+                          <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (17)" width="90" x="45" y="289">
+                            <parameter key="name" value="tag"/>
+                            <parameter key="io_object" value="ExampleSet"/>
+                            <parameter key="remove_from_store" value="false"/>
+                          </operator>
+                          <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (23)" width="90" x="313" y="34">
+                            <parameter key="remove_double_attributes" value="true"/>
+                            <parameter key="join_type" value="inner"/>
+                            <parameter key="use_id_attribute_as_key" value="false"/>
+                            <list key="key_attributes">
+                              <parameter key="name" value="name"/>
+                            </list>
+                            <parameter key="keep_both_join_attributes" value="false"/>
+                          </operator>
+                          <connect from_op="Recall (13)" from_port="result" to_op="Join (21)" to_port="left"/>
+                          <connect from_op="Recall (16)" from_port="result" to_op="Join (21)" to_port="right"/>
+                          <connect from_op="Join (21)" from_port="join" to_op="Join (23)" to_port="left"/>
+                          <connect from_op="Recall (17)" from_port="result" to_op="Join (23)" to_port="right"/>
+                          <connect from_op="Join (23)" from_port="join" to_port="out 1"/>
+                          <portSpacing port="source_in 1" spacing="0"/>
+                          <portSpacing port="sink_out 1" spacing="0"/>
+                          <portSpacing port="sink_out 2" spacing="0"/>
+                        </process>
+                      </operator>
+                      <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (16)" width="90" x="179" y="136">
+                        <parameter key="parameter_expression" value=""/>
+                        <parameter key="condition_class" value="custom_filters"/>
+                        <parameter key="invert_filter" value="false"/>
+                        <list key="filters_list">
+                          <parameter key="filters_entry_key" value="parameter_name.equals.manual_overall_furnace_selection_switch"/>
+                        </list>
+                        <parameter key="filters_logic_and" value="true"/>
+                        <parameter key="filters_check_metadata" value="true"/>
+                      </operator>
+                      <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (18)" width="90" x="313" y="136">
+                        <parameter key="type" value="include attributes"/>
+                        <parameter key="attribute_filter_type" value="a subset"/>
+                        <parameter key="select_attribute" value=""/>
+                        <parameter key="select_subset" value="formula␞entity_name"/>
+                        <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                      </operator>
+                      <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (18)" width="90" x="447" y="34">
+                        <parameter key="remove_double_attributes" value="true"/>
+                        <parameter key="join_type" value="inner"/>
+                        <parameter key="use_id_attribute_as_key" value="false"/>
+                        <list key="key_attributes">
+                          <parameter key="entity_name" value="entity_name"/>
+                        </list>
+                        <parameter key="keep_both_join_attributes" value="false"/>
+                      </operator>
+                      <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (17)" width="90" x="581" y="34">
+                        <parameter key="parameter_expression" value=""/>
+                        <parameter key="condition_class" value="custom_filters"/>
+                        <parameter key="invert_filter" value="false"/>
+                        <list key="filters_list">
+                          <parameter key="filters_entry_key" value="formula.equals.1"/>
+                        </list>
+                        <parameter key="filters_logic_and" value="true"/>
+                        <parameter key="filters_check_metadata" value="true"/>
+                      </operator>
+                      <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (23)" width="90" x="715" y="136">
+                        <parameter key="type" value="exclude attributes"/>
+                        <parameter key="attribute_filter_type" value="one attribute"/>
+                        <parameter key="select_attribute" value="formula"/>
+                        <parameter key="select_subset" value=""/>
+                        <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                      </operator>
+                      <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (19)" width="90" x="715" y="34">
+                        <parameter key="type" value="exclude attributes"/>
+                        <parameter key="attribute_filter_type" value="one attribute"/>
+                        <parameter key="select_attribute" value="formula"/>
+                        <parameter key="select_subset" value=""/>
+                        <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                      </operator>
+                      <connect from_port="condition" to_op="Join (18)" to_port="left"/>
+                      <connect from_op="Subprocess (2)" from_port="out 1" to_op="Filter Examples (16)" to_port="example set input"/>
+                      <connect from_op="Filter Examples (16)" from_port="example set output" to_op="Select Attributes (18)" to_port="example set input"/>
+                      <connect from_op="Select Attributes (18)" from_port="example set output" to_op="Join (18)" to_port="right"/>
+                      <connect from_op="Join (18)" from_port="join" to_op="Filter Examples (17)" to_port="example set input"/>
+                      <connect from_op="Filter Examples (17)" from_port="example set output" to_op="Select Attributes (19)" to_port="example set input"/>
+                      <connect from_op="Filter Examples (17)" from_port="unmatched example set" to_op="Select Attributes (23)" to_port="example set input"/>
+                      <connect from_op="Select Attributes (23)" from_port="example set output" to_port="input 2"/>
+                      <connect from_op="Select Attributes (19)" from_port="example set output" to_port="input 1"/>
+                      <portSpacing port="source_condition" spacing="0"/>
+                      <portSpacing port="source_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 2" spacing="0"/>
+                      <portSpacing port="sink_input 3" spacing="0"/>
+                    </process>
+                    <process expanded="true">
+                      <connect from_port="condition" to_port="input 1"/>
+                      <portSpacing port="source_condition" spacing="0"/>
+                      <portSpacing port="source_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 1" spacing="0"/>
+                      <portSpacing port="sink_input 2" spacing="0"/>
+                      <portSpacing port="sink_input 3" spacing="0"/>
+                    </process>
+                  </operator>
+                  <connect from_port="condition" to_op="Manual_Filtering_" to_port="condition"/>
+                  <connect from_op="Manual_Filtering_" from_port="input 1" to_port="input 1"/>
+                  <connect from_op="Manual_Filtering_" from_port="input 2" to_port="input 2"/>
+                  <portSpacing port="source_condition" spacing="0"/>
+                  <portSpacing port="source_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 2" spacing="0"/>
+                  <portSpacing port="sink_input 3" spacing="0"/>
+                </process>
+                <process expanded="true">
+                  <connect from_port="condition" to_port="input 1"/>
+                  <portSpacing port="source_condition" spacing="0"/>
+                  <portSpacing port="source_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 1" spacing="0"/>
+                  <portSpacing port="sink_input 2" spacing="0"/>
+                  <portSpacing port="sink_input 3" spacing="0"/>
+                </process>
+              </operator>
+              <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (18)" width="90" x="715" y="34">
+                <parameter key="parameter_expression" value=""/>
+                <parameter key="condition_class" value="custom_filters"/>
+                <parameter key="invert_filter" value="false"/>
+                <list key="filters_list">
+                  <parameter key="filters_entry_key" value="%{furnace_status}_text.equals.cracking"/>
+                </list>
+                <parameter key="filters_logic_and" value="true"/>
+                <parameter key="filters_check_metadata" value="true"/>
+                <description align="center" color="transparent" colored="false" width="126">status should be 'cracking' or code=1</description>
+              </operator>
+              <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (19)" width="90" x="916" y="34">
+                <parameter key="parameter_expression" value=""/>
+                <parameter key="condition_class" value="custom_filters"/>
+                <parameter key="invert_filter" value="false"/>
+                <list key="filters_list">
+                  <parameter key="filters_entry_key" value="%{ranking_splitter}_text.equals.ethane"/>
+                  <parameter key="filters_entry_key" value="%{ranking_splitter}_text.equals.butane"/>
+                  <parameter key="filters_entry_key" value="%{ranking_splitter}_text.equals.propane"/>
+                  <parameter key="filters_entry_key" value="%{ranking_splitter}_text.equals.naphtha"/>
+                  <parameter key="filters_entry_key" value="%{ranking_splitter}_text.equals.a180"/>
+                </list>
+                <parameter key="filters_logic_and" value="false"/>
+                <parameter key="filters_check_metadata" value="true"/>
+                <description align="center" color="transparent" colored="false" width="126">feed_type should either ethane&lt;br/&gt;butane&lt;br/&gt;propane</description>
+              </operator>
+              <operator activated="true" class="append" compatibility="12.1.001" expanded="true" height="145" name="Append" width="90" x="1050" y="391">
+                <parameter key="data_management" value="auto"/>
+                <parameter key="merge_type" value="all"/>
+              </operator>
+              <connect from_port="in 1" to_op="Model_Skip_Filtering" to_port="condition"/>
+              <connect from_op="Model_Skip_Filtering" from_port="input 1" to_op="Manual_Filtering" to_port="condition"/>
+              <connect from_op="Model_Skip_Filtering" from_port="input 2" to_op="Append" to_port="example set 3"/>
+              <connect from_op="Manual_Filtering" from_port="input 1" to_op="Filter Examples (18)" to_port="example set input"/>
+              <connect from_op="Manual_Filtering" from_port="input 2" to_op="Append" to_port="example set 4"/>
+              <connect from_op="Filter Examples (18)" from_port="example set output" to_op="Filter Examples (19)" to_port="example set input"/>
+              <connect from_op="Filter Examples (18)" from_port="unmatched example set" to_op="Append" to_port="example set 1"/>
+              <connect from_op="Filter Examples (19)" from_port="example set output" to_port="out 1"/>
+              <connect from_op="Filter Examples (19)" from_port="unmatched example set" to_op="Append" to_port="example set 2"/>
+              <connect from_op="Append" from_port="merged set" to_port="out 2"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="source_in 2" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+              <portSpacing port="sink_out 2" spacing="0"/>
+              <portSpacing port="sink_out 3" spacing="0"/>
+            </process>
+            <description align="center" color="transparent" colored="false" width="126">furnace selection for ranking</description>
+          </operator>
+          <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="82" name="ranking_and _scoring" width="90" x="581" y="34">
+            <parameter key="condition_type" value="min_examples"/>
+            <parameter key="condition_value" value="1"/>
+            <parameter key="expression" value=""/>
+            <parameter key="io_object" value="ANOVAMatrix"/>
+            <parameter key="return_inner_output" value="true"/>
+            <process expanded="true">
+              <operator activated="true" class="date_to_nominal" compatibility="12.1.001" expanded="true" height="82" name="Date to Nominal" width="90" x="179" y="136">
+                <parameter key="attribute_name" value="Timestamp"/>
+                <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+                <parameter key="time_zone" value="SYSTEM"/>
+                <parameter key="locale" value="English (United States)"/>
+                <parameter key="keep_old_attribute" value="false"/>
+              </operator>
+              <operator activated="true" class="concurrency:loop_values" compatibility="12.1.001" expanded="true" height="82" name="Loop Values (2)" width="90" x="313" y="136">
+                <parameter key="attribute" value="Timestamp"/>
+                <parameter key="iteration_macro" value="loop_value"/>
+                <parameter key="reuse_results" value="false"/>
+                <parameter key="enable_parallel_execution" value="true"/>
+                <process expanded="true">
+                  <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (12)" width="90" x="45" y="34">
+                    <parameter key="parameter_expression" value=""/>
+                    <parameter key="condition_class" value="custom_filters"/>
+                    <parameter key="invert_filter" value="false"/>
+                    <list key="filters_list">
+                      <parameter key="filters_entry_key" value="Timestamp.equals.%{loop_value}"/>
+                    </list>
+                    <parameter key="filters_logic_and" value="true"/>
+                    <parameter key="filters_check_metadata" value="true"/>
+                  </operator>
+                  <operator activated="true" class="concurrency:loop_values" compatibility="12.1.001" expanded="true" height="82" name="Loop Values (3)" width="90" x="246" y="34">
+                    <parameter key="attribute" value="%{ranking_splitter}_text"/>
+                    <parameter key="iteration_macro" value="current_ranking_splitter_text"/>
+                    <parameter key="reuse_results" value="false"/>
+                    <parameter key="enable_parallel_execution" value="true"/>
+                    <process expanded="true">
+                      <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (13)" width="90" x="179" y="34">
+                        <parameter key="parameter_expression" value=""/>
+                        <parameter key="condition_class" value="custom_filters"/>
+                        <parameter key="invert_filter" value="false"/>
+                        <list key="filters_list">
+                          <parameter key="filters_entry_key" value="%{ranking_splitter}_text.equals.%{current_ranking_splitter_text}"/>
+                        </list>
+                        <parameter key="filters_logic_and" value="true"/>
+                        <parameter key="filters_check_metadata" value="true"/>
+                      </operator>
+                      <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="furnace_ranking_info (2)" width="90" x="112" y="187">
+                        <parameter key="name" value="furnace_ranking_info"/>
+                        <parameter key="io_object" value="ExampleSet"/>
+                        <parameter key="remove_from_store" value="false"/>
+                      </operator>
+                      <operator activated="true" class="generate_macro" compatibility="12.1.001" expanded="true" height="82" name="Generate Macro" width="90" x="246" y="187">
+                        <list key="function_descriptions">
+                          <parameter key="overall_ranking_score" value="&quot;0&quot;"/>
+                        </list>
+                      </operator>
+                      <operator activated="true" class="concurrency:loop_values" compatibility="12.1.001" expanded="true" height="103" name="Loop Values" width="90" x="380" y="34">
+                        <parameter key="attribute" value="parameter_name"/>
+                        <parameter key="iteration_macro" value="current_parameter_name"/>
+                        <parameter key="reuse_results" value="true"/>
+                        <parameter key="enable_parallel_execution" value="false"/>
+                        <process expanded="true">
+                          <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (11)" width="90" x="45" y="34">
+                            <parameter key="parameter_expression" value=""/>
+                            <parameter key="condition_class" value="custom_filters"/>
+                            <parameter key="invert_filter" value="false"/>
+                            <list key="filters_list">
+                              <parameter key="filters_entry_key" value="parameter_name.equals.%{current_parameter_name}"/>
+                            </list>
+                            <parameter key="filters_logic_and" value="true"/>
+                            <parameter key="filters_check_metadata" value="true"/>
+                          </operator>
+                          <operator activated="true" class="extract_macro" compatibility="12.1.001" expanded="true" height="68" name="Extract Macro (3)" width="90" x="179" y="34">
+                            <parameter key="macro" value="parameter_name"/>
+                            <parameter key="macro_type" value="data_value"/>
+                            <parameter key="statistics" value="average"/>
+                            <parameter key="attribute_name" value="parameter_name"/>
+                            <parameter key="example_index" value="1"/>
+                            <list key="additional_macros">
+                              <parameter key="sort_type" value="sort_type"/>
+                              <parameter key="weight" value="parameter_weightage"/>
+                            </list>
+                          </operator>
+                          <operator activated="true" class="generate_macro" compatibility="12.1.001" expanded="true" height="82" name="Generate Macro (2)" width="90" x="313" y="34">
+                            <list key="function_descriptions">
+                              <parameter key="sorting_selector" value="if(lower(%{sort_type})==&quot;desc&quot;,1,if(lower(%{sort_type})==&quot;asc&quot;,2,3))"/>
+                              <parameter key="overall_ranking_score" value="%{overall_ranking_score}+&quot;+&quot;+&quot;[&quot;+%{parameter_name}+&quot;_score&quot;+&quot;]&quot;"/>
+                            </list>
+                          </operator>
+                          <operator activated="true" class="select_subprocess" compatibility="12.1.001" expanded="true" height="82" name="sorting_selector" width="90" x="45" y="187">
+                            <parameter key="select_which" value="%{sorting_selector}"/>
+                            <process expanded="true">
+                              <operator activated="true" class="blending:sort" compatibility="12.1.001" expanded="true" height="82" name="Sort (2)" width="90" x="45" y="34">
+                                <list key="sort_by">
+                                  <parameter key="%{parameter_name}" value="descending"/>
+                                </list>
+                              </operator>
+                              <operator activated="true" class="blending:generate_id" compatibility="12.1.001" expanded="true" height="82" name="Generate ID (2)" width="90" x="179" y="34">
+                                <parameter key="create_nominal_ids" value="false"/>
+                                <parameter key="offset" value="0"/>
+                              </operator>
+                              <operator activated="true" class="blending:set_role" compatibility="12.1.001" expanded="true" height="82" name="Set Role (2)" width="90" x="313" y="34">
+                                <list key="set_roles">
+                                  <parameter key="id" value="regular"/>
+                                </list>
+                              </operator>
+                              <connect from_port="input 1" to_op="Sort (2)" to_port="example set input"/>
+                              <connect from_op="Sort (2)" from_port="example set output" to_op="Generate ID (2)" to_port="example set input"/>
+                              <connect from_op="Generate ID (2)" from_port="example set output" to_op="Set Role (2)" to_port="example set input"/>
+                              <connect from_op="Set Role (2)" from_port="example set output" to_port="output 1"/>
+                              <portSpacing port="source_input 1" spacing="0"/>
+                              <portSpacing port="source_input 2" spacing="0"/>
+                              <portSpacing port="sink_output 1" spacing="0"/>
+                              <portSpacing port="sink_output 2" spacing="0"/>
+                            </process>
+                            <process expanded="true">
+                              <operator activated="true" class="blending:sort" compatibility="12.1.001" expanded="true" height="82" name="Sort (3)" width="90" x="112" y="34">
+                                <list key="sort_by">
+                                  <parameter key="%{parameter_name}" value="ascending"/>
+                                </list>
+                              </operator>
+                              <operator activated="true" class="blending:generate_id" compatibility="12.1.001" expanded="true" height="82" name="Generate ID (7)" width="90" x="246" y="34">
+                                <parameter key="create_nominal_ids" value="false"/>
+                                <parameter key="offset" value="0"/>
+                              </operator>
+                              <operator activated="true" class="blending:set_role" compatibility="12.1.001" expanded="true" height="82" name="Set Role (4)" width="90" x="380" y="34">
+                                <list key="set_roles">
+                                  <parameter key="id" value="regular"/>
+                                </list>
+                              </operator>
+                              <connect from_port="input 1" to_op="Sort (3)" to_port="example set input"/>
+                              <connect from_op="Sort (3)" from_port="example set output" to_op="Generate ID (7)" to_port="example set input"/>
+                              <connect from_op="Generate ID (7)" from_port="example set output" to_op="Set Role (4)" to_port="example set input"/>
+                              <connect from_op="Set Role (4)" from_port="example set output" to_port="output 1"/>
+                              <portSpacing port="source_input 1" spacing="0"/>
+                              <portSpacing port="source_input 2" spacing="0"/>
+                              <portSpacing port="sink_output 1" spacing="0"/>
+                              <portSpacing port="sink_output 2" spacing="0"/>
+                            </process>
+                            <process expanded="true">
+                              <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (8)" width="90" x="45" y="34">
+                                <list key="function_descriptions">
+                                  <parameter key="id" value="eval(%{sort_type})"/>
+                                </list>
+                                <parameter key="keep_all_columns" value="true"/>
+                                <parameter key="default_time_zone" value="Asia/Riyadh"/>
+                              </operator>
+                              <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (14)" width="90" x="179" y="34">
+                                <parameter key="parameter_expression" value=""/>
+                                <parameter key="condition_class" value="custom_filters"/>
+                                <parameter key="invert_filter" value="true"/>
+                                <list key="filters_list">
+                                  <parameter key="filters_entry_key" value="id.equals.asc"/>
+                                  <parameter key="filters_entry_key" value="id.equals.desc"/>
+                                </list>
+                                <parameter key="filters_logic_and" value="false"/>
+                                <parameter key="filters_check_metadata" value="true"/>
+                              </operator>
+                              <operator activated="true" class="parse_numbers" compatibility="12.1.001" expanded="true" height="82" name="Parse Numbers (2)" width="90" x="380" y="34">
+                                <parameter key="attribute_filter_type" value="single"/>
+                                <parameter key="attribute" value="id"/>
+                                <parameter key="attributes" value=""/>
+                                <parameter key="use_except_expression" value="false"/>
+                                <parameter key="value_type" value="nominal"/>
+                                <parameter key="use_value_type_exception" value="false"/>
+                                <parameter key="except_value_type" value="file_path"/>
+                                <parameter key="block_type" value="single_value"/>
+                                <parameter key="use_block_type_exception" value="false"/>
+                                <parameter key="except_block_type" value="single_value"/>
+                                <parameter key="invert_selection" value="false"/>
+                                <parameter key="include_special_attributes" value="false"/>
+                                <parameter key="decimal_character" value="."/>
+                                <parameter key="grouped_digits" value="false"/>
+                                <parameter key="grouping_character" value=","/>
+                                <parameter key="infinity_representation" value=""/>
+                                <parameter key="unparsable_value_handling" value="fail"/>
+                              </operator>
+                              <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (15)" width="90" x="313" y="136">
+                                <parameter key="parameter_expression" value=""/>
+                                <parameter key="condition_class" value="custom_filters"/>
+                                <parameter key="invert_filter" value="false"/>
+                                <list key="filters_list">
+                                  <parameter key="filters_entry_key" value="id.equals.asc"/>
+                                </list>
+                                <parameter key="filters_logic_and" value="false"/>
+                                <parameter key="filters_check_metadata" value="true"/>
+                              </operator>
+                              <operator activated="true" class="blending:sort" compatibility="12.1.001" expanded="true" height="82" name="Sort (6)" width="90" x="514" y="85">
+                                <list key="sort_by">
+                                  <parameter key="%{parameter_name}" value="ascending"/>
+                                </list>
+                              </operator>
+                              <operator activated="true" class="blending:generate_id" compatibility="12.1.001" expanded="true" height="82" name="Generate ID (8)" width="90" x="648" y="85">
+                                <parameter key="create_nominal_ids" value="false"/>
+                                <parameter key="offset" value="0"/>
+                              </operator>
+                              <operator activated="true" class="blending:set_role" compatibility="12.1.001" expanded="true" height="82" name="Set Role (5)" width="90" x="782" y="85">
+                                <list key="set_roles">
+                                  <parameter key="id" value="regular"/>
+                                </list>
+                              </operator>
+                              <operator activated="true" class="blending:sort" compatibility="12.1.001" expanded="true" height="82" name="Sort (7)" width="90" x="514" y="238">
+                                <list key="sort_by">
+                                  <parameter key="%{parameter_name}" value="descending"/>
+                                </list>
+                              </operator>
+                              <operator activated="true" class="blending:generate_id" compatibility="12.1.001" expanded="true" height="82" name="Generate ID (9)" width="90" x="648" y="238">
+                                <parameter key="create_nominal_ids" value="false"/>
+                                <parameter key="offset" value="0"/>
+                              </operator>
+                              <operator activated="true" class="blending:set_role" compatibility="12.1.001" expanded="true" height="82" name="Set Role (6)" width="90" x="782" y="238">
+                                <list key="set_roles">
+                                  <parameter key="id" value="regular"/>
+                                </list>
+                              </operator>
+                              <operator activated="true" class="append" compatibility="12.1.001" expanded="true" height="124" name="Append (8)" width="90" x="916" y="34">
+                                <parameter key="data_management" value="auto"/>
+                                <parameter key="merge_type" value="all"/>
+                              </operator>
+                              <connect from_port="input 1" to_op="Generate Attributes (8)" to_port="table input"/>
+                              <connect from_op="Generate Attributes (8)" from_port="table output" to_op="Filter Examples (14)" to_port="example set input"/>
+                              <connect from_op="Filter Examples (14)" from_port="example set output" to_op="Parse Numbers (2)" to_port="example set input"/>
+                              <connect from_op="Filter Examples (14)" from_port="unmatched example set" to_op="Filter Examples (15)" to_port="example set input"/>
+                              <connect from_op="Parse Numbers (2)" from_port="example set output" to_op="Append (8)" to_port="example set 1"/>
+                              <connect from_op="Filter Examples (15)" from_port="example set output" to_op="Sort (6)" to_port="example set input"/>
+                              <connect from_op="Filter Examples (15)" from_port="unmatched example set" to_op="Sort (7)" to_port="example set input"/>
+                              <connect from_op="Sort (6)" from_port="example set output" to_op="Generate ID (8)" to_port="example set input"/>
+                              <connect from_op="Generate ID (8)" from_port="example set output" to_op="Set Role (5)" to_port="example set input"/>
+                              <connect from_op="Set Role (5)" from_port="example set output" to_op="Append (8)" to_port="example set 2"/>
+                              <connect from_op="Sort (7)" from_port="example set output" to_op="Generate ID (9)" to_port="example set input"/>
+                              <connect from_op="Generate ID (9)" from_port="example set output" to_op="Set Role (6)" to_port="example set input"/>
+                              <connect from_op="Set Role (6)" from_port="example set output" to_op="Append (8)" to_port="example set 3"/>
+                              <connect from_op="Append (8)" from_port="merged set" to_port="output 1"/>
+                              <portSpacing port="source_input 1" spacing="0"/>
+                              <portSpacing port="source_input 2" spacing="0"/>
+                              <portSpacing port="sink_output 1" spacing="0"/>
+                              <portSpacing port="sink_output 2" spacing="0"/>
+                            </process>
+                          </operator>
+                          <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="82" name="Branch (8)" width="90" x="179" y="187">
+                            <parameter key="condition_type" value="macro_defined"/>
+                            <parameter key="condition_value" value="%{score_based_ranking} == &quot;active&quot;"/>
+                            <parameter key="expression" value="%{score_based_ranking}"/>
+                            <parameter key="io_object" value="ANOVAMatrix"/>
+                            <parameter key="return_inner_output" value="true"/>
+                            <process expanded="true">
+                              <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (20)" width="90" x="45" y="187">
+                                <parameter key="type" value="exclude attributes"/>
+                                <parameter key="attribute_filter_type" value="one attribute"/>
+                                <parameter key="select_attribute" value="id"/>
+                                <parameter key="select_subset" value=""/>
+                                <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                              </operator>
+                              <operator activated="true" class="normalize" compatibility="12.1.001" expanded="true" height="103" name="Normalize" width="90" x="179" y="85">
+                                <parameter key="return_preprocessing_model" value="false"/>
+                                <parameter key="attribute_filter_type" value="all"/>
+                                <parameter key="attribute" value=""/>
+                                <parameter key="attributes" value=""/>
+                                <parameter key="use_except_expression" value="false"/>
+                                <parameter key="value_type" value="numeric"/>
+                                <parameter key="use_value_type_exception" value="false"/>
+                                <parameter key="except_value_type" value="real"/>
+                                <parameter key="block_type" value="value_series"/>
+                                <parameter key="use_block_type_exception" value="false"/>
+                                <parameter key="except_block_type" value="value_series_end"/>
+                                <parameter key="invert_selection" value="false"/>
+                                <parameter key="include_special_attributes" value="false"/>
+                                <parameter key="method" value="range transformation"/>
+                                <parameter key="min" value="0.0"/>
+                                <parameter key="max" value="1.0"/>
+                                <parameter key="allow_negative_values" value="false"/>
+                              </operator>
+                              <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (15)" width="90" x="313" y="85">
+                                <list key="function_descriptions">
+                                  <parameter key="%{parameter_name}_score" value="if(lower(%{sort_type})==&quot;asc&quot;,(attribute(%{parameter_name})*eval(%{weight})),(attribute(%{parameter_name})*eval(%{weight})*-1))"/>
+                                </list>
+                                <parameter key="keep_all_columns" value="true"/>
+                                <parameter key="default_time_zone" value="Asia/Riyadh"/>
+                              </operator>
+                              <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (31)" width="90" x="447" y="85">
+                                <parameter key="type" value="include attributes"/>
+                                <parameter key="attribute_filter_type" value="one attribute"/>
+                                <parameter key="select_attribute" value="%{parameter_name}_score"/>
+                                <parameter key="select_subset" value=""/>
+                                <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                              </operator>
+                              <operator activated="true" class="blending:rename" compatibility="12.1.001" expanded="true" height="82" name="Rename (11)" width="90" x="246" y="238">
+                                <list key="rename attributes">
+                                  <parameter key="id" value="%{parameter_name}_rank"/>
+                                </list>
+                                <parameter key="from_attribute" value=""/>
+                                <parameter key="to_attribute" value=""/>
+                              </operator>
+                              <operator activated="true" class="operator_toolbox:merge" compatibility="3.0.000" expanded="true" height="103" name="Merge Attributes (2)" width="90" x="581" y="187">
+                                <parameter key="handling_of_duplicate_attributes" value="rename"/>
+                                <parameter key="handling_of_special_attributes" value="keep_first_special_other_regular"/>
+                                <parameter key="handling_of_duplicate_annotations" value="rename"/>
+                              </operator>
+                              <connect from_port="condition" to_op="Select Attributes (20)" to_port="example set input"/>
+                              <connect from_op="Select Attributes (20)" from_port="example set output" to_op="Normalize" to_port="example set input"/>
+                              <connect from_op="Select Attributes (20)" from_port="original" to_op="Rename (11)" to_port="example set input"/>
+                              <connect from_op="Normalize" from_port="example set output" to_op="Generate Attributes (15)" to_port="table input"/>
+                              <connect from_op="Generate Attributes (15)" from_port="table output" to_op="Select Attributes (31)" to_port="example set input"/>
+                              <connect from_op="Select Attributes (31)" from_port="example set output" to_op="Merge Attributes (2)" to_port="example set 1"/>
+                              <connect from_op="Rename (11)" from_port="example set output" to_op="Merge Attributes (2)" to_port="example set 2"/>
+                              <connect from_op="Merge Attributes (2)" from_port="merged set" to_port="input 1"/>
+                              <portSpacing port="source_condition" spacing="0"/>
+                              <portSpacing port="source_input 1" spacing="0"/>
+                              <portSpacing port="sink_input 1" spacing="0"/>
+                              <portSpacing port="sink_input 2" spacing="0"/>
+                            </process>
+                            <process expanded="true">
+                              <operator activated="true" class="blending:rename" compatibility="12.1.001" expanded="true" height="82" name="Rename (12)" width="90" x="112" y="85">
+                                <list key="rename attributes">
+                                  <parameter key="id" value="%{parameter_name}_rank"/>
+                                </list>
+                                <parameter key="from_attribute" value=""/>
+                                <parameter key="to_attribute" value=""/>
+                              </operator>
+                              <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (11)" width="90" x="246" y="85">
+                                <list key="function_descriptions">
+                                  <parameter key="%{parameter_name}_score" value="attribute(%{parameter_name}+&quot;_rank&quot;)*eval(%{weight})"/>
+                                </list>
+                                <parameter key="keep_all_columns" value="true"/>
+                                <parameter key="default_time_zone" value="Asia/Riyadh"/>
+                              </operator>
+                              <connect from_port="condition" to_op="Rename (12)" to_port="example set input"/>
+                              <connect from_op="Rename (12)" from_port="example set output" to_op="Generate Attributes (11)" to_port="table input"/>
+                              <connect from_op="Generate Attributes (11)" from_port="table output" to_port="input 1"/>
+                              <portSpacing port="source_condition" spacing="0"/>
+                              <portSpacing port="source_input 1" spacing="0"/>
+                              <portSpacing port="sink_input 1" spacing="0"/>
+                              <portSpacing port="sink_input 2" spacing="0"/>
+                            </process>
+                          </operator>
+                          <connect from_port="input 1" to_op="Filter Examples (11)" to_port="example set input"/>
+                          <connect from_port="input 2" to_op="sorting_selector" to_port="input 1"/>
+                          <connect from_op="Filter Examples (11)" from_port="example set output" to_op="Extract Macro (3)" to_port="example set"/>
+                          <connect from_op="Filter Examples (11)" from_port="original" to_port="output 1"/>
+                          <connect from_op="Extract Macro (3)" from_port="example set" to_op="Generate Macro (2)" to_port="through 1"/>
+                          <connect from_op="sorting_selector" from_port="output 1" to_op="Branch (8)" to_port="condition"/>
+                          <connect from_op="Branch (8)" from_port="input 1" to_port="output 2"/>
+                          <portSpacing port="source_input 1" spacing="0"/>
+                          <portSpacing port="source_input 2" spacing="0"/>
+                          <portSpacing port="source_input 3" spacing="0"/>
+                          <portSpacing port="sink_output 1" spacing="0"/>
+                          <portSpacing port="sink_output 2" spacing="0"/>
+                          <portSpacing port="sink_output 3" spacing="0"/>
+                        </process>
+                      </operator>
+                      <operator activated="true" class="branch" compatibility="12.1.001" expanded="true" height="82" name="Branch (3)" width="90" x="514" y="34">
+                        <parameter key="condition_type" value="expression"/>
+                        <parameter key="condition_value" value="%{score_based_ranking} == &quot;active&quot;"/>
+                        <parameter key="expression" value="%{score_based_ranking} == &quot;active&quot;"/>
+                        <parameter key="io_object" value="ANOVAMatrix"/>
+                        <parameter key="return_inner_output" value="true"/>
+                        <process expanded="true">
+                          <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (14)" width="90" x="112" y="85">
+                            <list key="function_descriptions">
+                              <parameter key="overall_ranking_score" value="(eval(%{overall_ranking_score})/eval(%{sum_parameter_weightage}))+1"/>
+                            </list>
+                            <parameter key="keep_all_columns" value="true"/>
+                            <parameter key="default_time_zone" value="Asia/Riyadh"/>
+                          </operator>
+                          <connect from_port="condition" to_op="Generate Attributes (14)" to_port="table input"/>
+                          <connect from_op="Generate Attributes (14)" from_port="table output" to_port="input 1"/>
+                          <portSpacing port="source_condition" spacing="0"/>
+                          <portSpacing port="source_input 1" spacing="0"/>
+                          <portSpacing port="sink_input 1" spacing="0"/>
+                          <portSpacing port="sink_input 2" spacing="0"/>
+                        </process>
+                        <process expanded="true">
+                          <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (9)" width="90" x="112" y="85">
+                            <list key="function_descriptions">
+                              <parameter key="overall_ranking_score" value="eval(%{overall_ranking_score})/eval(%{sum_parameter_weightage})"/>
+                            </list>
+                            <parameter key="keep_all_columns" value="true"/>
+                            <parameter key="default_time_zone" value="Asia/Riyadh"/>
+                          </operator>
+                          <connect from_port="condition" to_op="Generate Attributes (9)" to_port="table input"/>
+                          <connect from_op="Generate Attributes (9)" from_port="table output" to_port="input 1"/>
+                          <portSpacing port="source_condition" spacing="0"/>
+                          <portSpacing port="source_input 1" spacing="0"/>
+                          <portSpacing port="sink_input 1" spacing="0"/>
+                          <portSpacing port="sink_input 2" spacing="0"/>
+                        </process>
+                      </operator>
+                      <operator activated="true" class="blending:sort" compatibility="12.1.001" expanded="true" height="82" name="Sort (5)" width="90" x="648" y="34">
+                        <list key="sort_by">
+                          <parameter key="overall_ranking_score" value="ascending"/>
+                        </list>
+                      </operator>
+                      <operator activated="true" class="blending:generate_id" compatibility="12.1.001" expanded="true" height="82" name="Generate ID (4)" width="90" x="782" y="34">
+                        <parameter key="create_nominal_ids" value="false"/>
+                        <parameter key="offset" value="0"/>
+                      </operator>
+                      <operator activated="true" class="blending:set_role" compatibility="12.1.001" expanded="true" height="82" name="Set Role (3)" width="90" x="916" y="34">
+                        <list key="set_roles">
+                          <parameter key="id" value="regular"/>
+                        </list>
+                      </operator>
+                      <operator activated="true" class="blending:rename" compatibility="12.1.001" expanded="true" height="82" name="Rename (8)" width="90" x="1050" y="34">
+                        <list key="rename attributes">
+                          <parameter key="id" value="overall_ranking"/>
+                        </list>
+                        <parameter key="from_attribute" value=""/>
+                        <parameter key="to_attribute" value=""/>
+                      </operator>
+                      <connect from_port="input 1" to_op="Filter Examples (13)" to_port="example set input"/>
+                      <connect from_op="Filter Examples (13)" from_port="example set output" to_op="Loop Values" to_port="input 2"/>
+                      <connect from_op="furnace_ranking_info (2)" from_port="result" to_op="Generate Macro" to_port="through 1"/>
+                      <connect from_op="Generate Macro" from_port="through 1" to_op="Loop Values" to_port="input 1"/>
+                      <connect from_op="Loop Values" from_port="output 2" to_op="Branch (3)" to_port="condition"/>
+                      <connect from_op="Branch (3)" from_port="input 1" to_op="Sort (5)" to_port="example set input"/>
+                      <connect from_op="Sort (5)" from_port="example set output" to_op="Generate ID (4)" to_port="example set input"/>
+                      <connect from_op="Generate ID (4)" from_port="example set output" to_op="Set Role (3)" to_port="example set input"/>
+                      <connect from_op="Set Role (3)" from_port="example set output" to_op="Rename (8)" to_port="example set input"/>
+                      <connect from_op="Rename (8)" from_port="example set output" to_port="output 1"/>
+                      <portSpacing port="source_input 1" spacing="0"/>
+                      <portSpacing port="source_input 2" spacing="0"/>
+                      <portSpacing port="sink_output 1" spacing="0"/>
+                      <portSpacing port="sink_output 2" spacing="0"/>
+                    </process>
+                  </operator>
+                  <operator activated="true" class="append" compatibility="12.1.001" expanded="true" height="82" name="Append (9)" width="90" x="447" y="34">
+                    <parameter key="data_management" value="auto"/>
+                    <parameter key="merge_type" value="all"/>
+                  </operator>
+                  <connect from_port="input 1" to_op="Filter Examples (12)" to_port="example set input"/>
+                  <connect from_op="Filter Examples (12)" from_port="example set output" to_op="Loop Values (3)" to_port="input 1"/>
+                  <connect from_op="Loop Values (3)" from_port="output 1" to_op="Append (9)" to_port="example set 1"/>
+                  <connect from_op="Append (9)" from_port="merged set" to_port="output 1"/>
+                  <portSpacing port="source_input 1" spacing="0"/>
+                  <portSpacing port="source_input 2" spacing="0"/>
+                  <portSpacing port="sink_output 1" spacing="0"/>
+                  <portSpacing port="sink_output 2" spacing="0"/>
+                </process>
+              </operator>
+              <operator activated="true" class="append" compatibility="12.1.001" expanded="true" height="82" name="Append (10)" width="90" x="447" y="136">
+                <parameter key="data_management" value="auto"/>
+                <parameter key="merge_type" value="all"/>
+              </operator>
+              <connect from_port="condition" to_op="Date to Nominal" to_port="example set input"/>
+              <connect from_op="Date to Nominal" from_port="example set output" to_op="Loop Values (2)" to_port="input 1"/>
+              <connect from_op="Loop Values (2)" from_port="output 1" to_op="Append (10)" to_port="example set 1"/>
+              <connect from_op="Append (10)" from_port="merged set" to_port="input 1"/>
+              <portSpacing port="source_condition" spacing="0"/>
+              <portSpacing port="source_input 1" spacing="0"/>
+              <portSpacing port="sink_input 1" spacing="0"/>
+              <portSpacing port="sink_input 2" spacing="0"/>
+            </process>
+            <process expanded="true">
+              <portSpacing port="source_condition" spacing="0"/>
+              <portSpacing port="source_input 1" spacing="0"/>
+              <portSpacing port="sink_input 1" spacing="0"/>
+              <portSpacing port="sink_input 2" spacing="0"/>
+            </process>
+          </operator>
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="82" name="ranking_parameters" width="90" x="514" y="187">
+            <process expanded="true">
+              <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (10)" width="90" x="45" y="34">
+                <list key="function_descriptions">
+                  <parameter key="overall_ranking_score" value="MISSING_NUMERIC"/>
+                  <parameter key="overall_ranking" value="MISSING_NUMERIC"/>
+                </list>
+                <parameter key="keep_all_columns" value="true"/>
+                <parameter key="default_time_zone" value="Asia/Riyadh"/>
+              </operator>
+              <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="82" name="all_parameters" width="90" x="45" y="187">
+                <process expanded="true">
+                  <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (14)" width="90" x="45" y="34">
+                    <parameter key="name" value="furnace_ranking_info"/>
+                    <parameter key="io_object" value="ExampleSet"/>
+                    <parameter key="remove_from_store" value="false"/>
+                  </operator>
+                  <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (10)" width="90" x="179" y="34">
+                    <parameter key="type" value="include attributes"/>
+                    <parameter key="attribute_filter_type" value="one attribute"/>
+                    <parameter key="select_attribute" value="parameter_name"/>
+                    <parameter key="select_subset" value=""/>
+                    <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                  </operator>
+                  <operator activated="true" class="utility:create_exampleset" compatibility="12.1.001" expanded="true" height="68" name="Create ExampleSet (7)" width="90" x="179" y="136">
+                    <parameter key="generator_type" value="comma separated text"/>
+                    <parameter key="number_of_examples" value="100"/>
+                    <parameter key="use_stepsize" value="false"/>
+                    <list key="function_descriptions"/>
+                    <parameter key="add_id_attribute" value="false"/>
+                    <list key="numeric_series_configuration"/>
+                    <list key="date_series_configuration"/>
+                    <list key="date_series_configuration (interval)"/>
+                    <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+                    <parameter key="time_zone" value="SYSTEM"/>
+                    <parameter key="input_csv_text" value="suffix&#10;score&#10;rank"/>
+                    <parameter key="column_separator" value=","/>
+                    <parameter key="parse_all_as_nominal" value="false"/>
+                    <parameter key="decimal_point_character" value="."/>
+                    <parameter key="trim_attribute_names" value="true"/>
+                  </operator>
+                  <operator activated="true" class="cartesian_product" compatibility="12.1.001" expanded="true" height="82" name="Cartesian" width="90" x="380" y="34">
+                    <parameter key="remove_double_attributes" value="true"/>
+                  </operator>
+                  <operator activated="true" class="blending:generate_columns" compatibility="12.1.001" expanded="true" height="82" name="Generate Attributes (5)" width="90" x="514" y="34">
+                    <list key="function_descriptions">
+                      <parameter key="all_parameters" value="concat([parameter_name],&quot;_&quot;,[suffix])"/>
+                      <parameter key="value" value="MISSING_NUMERIC"/>
+                      <parameter key="row_id" value="1"/>
+                    </list>
+                    <parameter key="keep_all_columns" value="true"/>
+                    <parameter key="default_time_zone" value="Asia/Riyadh"/>
+                  </operator>
+                  <operator activated="true" class="blending:pivot" compatibility="12.1.001" expanded="true" height="103" name="Pivot (5)" width="90" x="648" y="34">
+                    <parameter key="group_by_attributes" value="row_id"/>
+                    <parameter key="column_grouping_attribute" value="all_parameters"/>
+                    <list key="aggregation_attributes">
+                      <parameter key="value" value="first"/>
+                    </list>
+                    <parameter key="use_default_aggregation" value="false"/>
+                    <parameter key="default_aggregation_function" value="first"/>
+                  </operator>
+                  <operator activated="true" class="blending:select_attributes" compatibility="12.1.001" expanded="true" height="82" name="Select Attributes (12)" width="90" x="782" y="34">
+                    <parameter key="type" value="exclude attributes"/>
+                    <parameter key="attribute_filter_type" value="one attribute"/>
+                    <parameter key="select_attribute" value="row_id"/>
+                    <parameter key="select_subset" value=""/>
+                    <parameter key="also_apply_to_special_attributes_(id,_label..)" value="false"/>
+                  </operator>
+                  <operator activated="true" class="rename_by_replacing" compatibility="12.1.001" expanded="true" height="82" name="Rename by Replacing (6)" width="90" x="916" y="34">
+                    <parameter key="attribute_filter_type" value="all"/>
+                    <parameter key="attribute" value=""/>
+                    <parameter key="attributes" value=""/>
+                    <parameter key="use_except_expression" value="false"/>
+                    <parameter key="value_type" value="attribute_value"/>
+                    <parameter key="use_value_type_exception" value="false"/>
+                    <parameter key="except_value_type" value="time"/>
+                    <parameter key="block_type" value="attribute_block"/>
+                    <parameter key="use_block_type_exception" value="false"/>
+                    <parameter key="except_block_type" value="value_matrix_row_start"/>
+                    <parameter key="invert_selection" value="false"/>
+                    <parameter key="include_special_attributes" value="false"/>
+                    <parameter key="replace_what" value="first\(value\)\_"/>
+                  </operator>
+                  <connect from_op="Recall (14)" from_port="result" to_op="Select Attributes (10)" to_port="example set input"/>
+                  <connect from_op="Select Attributes (10)" from_port="example set output" to_op="Cartesian" to_port="left"/>
+                  <connect from_op="Create ExampleSet (7)" from_port="output" to_op="Cartesian" to_port="right"/>
+                  <connect from_op="Cartesian" from_port="join" to_op="Generate Attributes (5)" to_port="table input"/>
+                  <connect from_op="Generate Attributes (5)" from_port="table output" to_op="Pivot (5)" to_port="input"/>
+                  <connect from_op="Pivot (5)" from_port="output" to_op="Select Attributes (12)" to_port="example set input"/>
+                  <connect from_op="Select Attributes (12)" from_port="example set output" to_op="Rename by Replacing (6)" to_port="example set input"/>
+                  <connect from_op="Rename by Replacing (6)" from_port="example set output" to_port="out 1"/>
+                  <portSpacing port="source_in 1" spacing="0"/>
+                  <portSpacing port="sink_out 1" spacing="0"/>
+                  <portSpacing port="sink_out 2" spacing="0"/>
+                </process>
+              </operator>
+              <operator activated="true" class="operator_toolbox:merge" compatibility="3.0.000" expanded="true" height="103" name="Merge Attributes (4)" width="90" x="179" y="85">
+                <parameter key="handling_of_duplicate_attributes" value="rename"/>
+                <parameter key="handling_of_special_attributes" value="keep_first_special_other_regular"/>
+                <parameter key="handling_of_duplicate_annotations" value="rename"/>
+              </operator>
+              <connect from_port="in 1" to_op="Generate Attributes (10)" to_port="table input"/>
+              <connect from_op="Generate Attributes (10)" from_port="table output" to_op="Merge Attributes (4)" to_port="example set 1"/>
+              <connect from_op="all_parameters" from_port="out 1" to_op="Merge Attributes (4)" to_port="example set 2"/>
+              <connect from_op="Merge Attributes (4)" from_port="merged set" to_port="out 1"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="source_in 2" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+              <portSpacing port="sink_out 2" spacing="0"/>
+            </process>
+          </operator>
+          <operator activated="true" class="date_to_nominal" compatibility="12.1.001" expanded="true" height="82" name="Date to Nominal (2)" width="90" x="648" y="187">
+            <parameter key="attribute_name" value="Timestamp"/>
+            <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+            <parameter key="time_zone" value="SYSTEM"/>
+            <parameter key="locale" value="English (United States)"/>
+            <parameter key="keep_old_attribute" value="false"/>
+          </operator>
+          <operator activated="true" class="append" compatibility="12.1.001" expanded="true" height="103" name="Append (11)" width="90" x="849" y="34">
+            <parameter key="data_management" value="auto"/>
+            <parameter key="merge_type" value="all"/>
+          </operator>
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="82" name="de-parameterization (2)" width="90" x="983" y="34">
+            <process expanded="true">
+              <operator activated="true" class="numerical_to_polynominal" compatibility="12.1.001" expanded="true" height="82" name="Numerical to Polynominal (6)" width="90" x="112" y="34">
+                <parameter key="attribute_filter_type" value="all"/>
+                <parameter key="attribute" value=""/>
+                <parameter key="attributes" value=""/>
+                <parameter key="use_except_expression" value="false"/>
+                <parameter key="value_type" value="numeric"/>
+                <parameter key="use_value_type_exception" value="false"/>
+                <parameter key="except_value_type" value="real"/>
+                <parameter key="block_type" value="value_series"/>
+                <parameter key="use_block_type_exception" value="false"/>
+                <parameter key="except_block_type" value="value_series_end"/>
+                <parameter key="invert_selection" value="false"/>
+                <parameter key="include_special_attributes" value="false"/>
+              </operator>
+              <operator activated="true" class="de_pivot" compatibility="12.1.001" expanded="true" height="82" name="De-Pivot (8)" origin="GENERATED_TUTORIAL" width="90" x="246" y="34">
+                <list key="attribute_name">
+                  <parameter key="value" value="^(?!Timestamp$|entity_name$).+"/>
+                </list>
+                <parameter key="index_attribute" value="parameter_name"/>
+                <parameter key="create_nominal_index" value="true"/>
+                <parameter key="keep_missings" value="true"/>
+              </operator>
+              <operator activated="true" class="recall" compatibility="12.1.001" expanded="true" height="68" name="Recall (7)" width="90" x="380" y="187">
+                <parameter key="name" value="tag_parameter_mapping"/>
+                <parameter key="io_object" value="ExampleSet"/>
+                <parameter key="remove_from_store" value="false"/>
+              </operator>
+              <operator activated="true" class="concurrency:join" compatibility="12.1.001" expanded="true" height="82" name="Join (8)" width="90" x="514" y="34">
+                <parameter key="remove_double_attributes" value="true"/>
+                <parameter key="join_type" value="inner"/>
+                <parameter key="use_id_attribute_as_key" value="false"/>
+                <list key="key_attributes">
+                  <parameter key="parameter_name" value="parameter_name"/>
+                  <parameter key="entity_name" value="entity_name"/>
+                </list>
+                <parameter key="keep_both_join_attributes" value="false"/>
+              </operator>
+              <operator activated="true" class="filter_examples" compatibility="12.1.001" expanded="true" height="103" name="Filter Examples (5)" width="90" x="648" y="34">
+                <parameter key="parameter_expression" value=""/>
+                <parameter key="condition_class" value="custom_filters"/>
+                <parameter key="invert_filter" value="false"/>
+                <list key="filters_list">
+                  <parameter key="filters_entry_key" value="short_name.does_not_equal.Timestamp"/>
+                </list>
+                <parameter key="filters_logic_and" value="true"/>
+                <parameter key="filters_check_metadata" value="true"/>
+              </operator>
+              <operator activated="true" class="remove_duplicates" compatibility="12.1.001" expanded="true" height="103" name="Remove Duplicates (10)" width="90" x="849" y="34">
+                <parameter key="attribute_filter_type" value="subset"/>
+                <parameter key="attribute" value=""/>
+                <parameter key="attributes" value="Timestamp|short_name"/>
+                <parameter key="use_except_expression" value="false"/>
+                <parameter key="value_type" value="attribute_value"/>
+                <parameter key="use_value_type_exception" value="false"/>
+                <parameter key="except_value_type" value="time"/>
+                <parameter key="block_type" value="attribute_block"/>
+                <parameter key="use_block_type_exception" value="false"/>
+                <parameter key="except_block_type" value="value_matrix_row_start"/>
+                <parameter key="invert_selection" value="false"/>
+                <parameter key="include_special_attributes" value="false"/>
+                <parameter key="treat_missing_values_as_duplicates" value="false"/>
+                <description align="center" color="transparent" colored="false" width="126">tag_name&lt;br/&gt;TImestamp</description>
+              </operator>
+              <operator activated="true" class="blending:pivot" compatibility="12.1.001" expanded="true" height="103" name="Pivot" width="90" x="983" y="34">
+                <parameter key="group_by_attributes" value="Timestamp"/>
+                <parameter key="column_grouping_attribute" value="short_name"/>
+                <list key="aggregation_attributes">
+                  <parameter key="value" value="first"/>
+                </list>
+                <parameter key="use_default_aggregation" value="false"/>
+                <parameter key="default_aggregation_function" value="first"/>
+              </operator>
+              <operator activated="true" class="rename_by_replacing" compatibility="12.1.001" expanded="true" height="82" name="Rename by Replacing" width="90" x="1117" y="34">
+                <parameter key="attribute_filter_type" value="all"/>
+                <parameter key="attribute" value=""/>
+                <parameter key="attributes" value=""/>
+                <parameter key="use_except_expression" value="false"/>
+                <parameter key="value_type" value="attribute_value"/>
+                <parameter key="use_value_type_exception" value="false"/>
+                <parameter key="except_value_type" value="time"/>
+                <parameter key="block_type" value="attribute_block"/>
+                <parameter key="use_block_type_exception" value="false"/>
+                <parameter key="except_block_type" value="value_matrix_row_start"/>
+                <parameter key="invert_selection" value="false"/>
+                <parameter key="include_special_attributes" value="false"/>
+                <parameter key="replace_what" value="first\(value\)_"/>
+              </operator>
+              <connect from_port="in 1" to_op="Numerical to Polynominal (6)" to_port="example set input"/>
+              <connect from_op="Numerical to Polynominal (6)" from_port="example set output" to_op="De-Pivot (8)" to_port="example set input"/>
+              <connect from_op="De-Pivot (8)" from_port="example set output" to_op="Join (8)" to_port="left"/>
+              <connect from_op="Recall (7)" from_port="result" to_op="Join (8)" to_port="right"/>
+              <connect from_op="Join (8)" from_port="join" to_op="Filter Examples (5)" to_port="example set input"/>
+              <connect from_op="Filter Examples (5)" from_port="example set output" to_op="Remove Duplicates (10)" to_port="example set input"/>
+              <connect from_op="Remove Duplicates (10)" from_port="example set output" to_op="Pivot" to_port="input"/>
+              <connect from_op="Pivot" from_port="output" to_op="Rename by Replacing" to_port="example set input"/>
+              <connect from_op="Rename by Replacing" from_port="example set output" to_port="out 1"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="source_in 2" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+              <portSpacing port="sink_out 2" spacing="0"/>
+            </process>
+          </operator>
+          <operator activated="true" class="nominal_to_date" compatibility="12.1.001" expanded="true" height="82" name="Nominal to Date" width="90" x="1117" y="34">
+            <parameter key="attribute_name" value="Timestamp"/>
+            <parameter key="date_type" value="date_time"/>
+            <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+            <parameter key="time_zone" value="SYSTEM"/>
+            <parameter key="locale" value="English (United States)"/>
+            <parameter key="keep_old_attribute" value="false"/>
+          </operator>
+          <operator activated="true" class="subprocess" compatibility="12.1.001" expanded="true" height="68" name="log end (7)" width="90" x="1251" y="493">
+            <process expanded="true">
+              <operator activated="true" class="utility:create_exampleset" compatibility="12.1.001" expanded="true" height="68" name="Create ExampleSet (80)" width="90" x="45" y="136">
+                <parameter key="generator_type" value="attribute functions"/>
+                <parameter key="number_of_examples" value="1"/>
+                <parameter key="use_stepsize" value="false"/>
+                <list key="function_descriptions">
+                  <parameter key="timestamp" value="date_now()"/>
+                  <parameter key="level" value="%{process_name}"/>
+                  <parameter key="process_name" value="&quot;Ranking&quot;"/>
+                  <parameter key="category" value="&quot;RM&quot;"/>
+                  <parameter key="case_id" value="%{case_id}"/>
+                  <parameter key="info" value="&quot;endedAt&quot;"/>
+                  <parameter key="model_id" value="%{ranking_model_id}"/>
+                </list>
+                <parameter key="add_id_attribute" value="false"/>
+                <list key="numeric_series_configuration"/>
+                <list key="date_series_configuration"/>
+                <list key="date_series_configuration (interval)"/>
+                <parameter key="date_format" value="yyyy-MM-dd HH:mm:ss"/>
+                <parameter key="time_zone" value="SYSTEM"/>
+                <parameter key="column_separator" value=","/>
+                <parameter key="parse_all_as_nominal" value="false"/>
+                <parameter key="decimal_point_character" value="."/>
+                <parameter key="trim_attribute_names" value="true"/>
+              </operator>
+              <operator activated="true" class="productivity:execute_process" compatibility="12.1.001" expanded="true" height="68" name="Execute feature_log (24)" width="90" x="179" y="136">
+                <parameter key="process_location" value="../../01_Common_Processes/feature_log_trg"/>
+                <parameter key="use_input" value="true"/>
+                <parameter key="store_output" value="false"/>
+                <parameter key="propagate_metadata_recursively" value="true"/>
+                <parameter key="cache_process" value="true"/>
+                <list key="macros"/>
+                <parameter key="fail_for_unknown_macros" value="true"/>
+              </operator>
+              <connect from_op="Create ExampleSet (80)" from_port="output" to_op="Execute feature_log (24)" to_port="input 1"/>
+              <portSpacing port="source_in 1" spacing="0"/>
+              <portSpacing port="sink_out 1" spacing="0"/>
+            </process>
+          </operator>
+          <connect from_port="in 1" to_op="text_code_mapping (2)" to_port="in 1"/>
+          <connect from_op="text_code_mapping (2)" from_port="out 1" to_op="furnace_selection (2)" to_port="in 1"/>
+          <connect from_op="furnace_selection (2)" from_port="out 1" to_op="ranking_and _scoring" to_port="condition"/>
+          <connect from_op="furnace_selection (2)" from_port="out 2" to_op="ranking_parameters" to_port="in 1"/>
+          <connect from_op="ranking_and _scoring" from_port="input 1" to_op="Append (11)" to_port="example set 1"/>
+          <connect from_op="ranking_parameters" from_port="out 1" to_op="Date to Nominal (2)" to_port="example set input"/>
+          <connect from_op="Date to Nominal (2)" from_port="example set output" to_op="Append (11)" to_port="example set 2"/>
+          <connect from_op="Append (11)" from_port="merged set" to_op="de-parameterization (2)" to_port="in 1"/>
+          <connect from_op="de-parameterization (2)" from_port="out 1" to_op="Nominal to Date" to_port="example set input"/>
+          <connect from_op="Nominal to Date" from_port="example set output" to_port="out 1"/>
+          <portSpacing port="source_in 1" spacing="0"/>
+          <portSpacing port="source_in 2" spacing="0"/>
+          <portSpacing port="sink_out 1" spacing="0"/>
+          <portSpacing port="sink_out 2" spacing="0"/>
+        </process>
+        <description align="center" color="transparent" colored="true" width="126">Ranking is done on selected furnace.&lt;br&gt;Selection is done depending on model skip or manual filtering as per macro define.&lt;br&gt;&lt;br&gt;i/p : parameterized tags&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;br&gt;</description>
+      </operator>
+      <connect from_op="parameterization" from_port="out 1" to_op="ranking" to_port="in 1"/>
+      <portSpacing port="source_input 1" spacing="0"/>
+      <portSpacing port="sink_result 1" spacing="0"/>
+    </process>
+  </operator>
+</process>

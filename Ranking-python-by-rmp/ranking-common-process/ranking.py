@@ -18,11 +18,11 @@ Nested helpers (same execution hierarchy as RapidMiner):
 from __future__ import annotations
 
 from typing import List
-
+import os
 import pandas as pd
 
 from rm_common import (
-    Macros, IOStore, _log_block, _to_num,
+    Macros, IOStore, LOG, _log_block, _to_num,
     op_create_exampleset_csv, op_cartesian, op_join, op_rename,
     op_select_attributes, op_filter_examples, op_sort, op_generate_id,
     op_generate_columns, op_normalize_range, op_parse_numbers, op_append,
@@ -243,8 +243,9 @@ def _sorting_selector(data: pd.DataFrame, macros: Macros) -> pd.DataFrame:
         return d
 
     # ----- eval branch (selector == 3) ; sort_type is itself an expression -----
-    # [Generate Attributes (8)] id = eval(%{sort_type})
-    d = op_generate_columns(data, {"id": "eval(%{sort_type})"}, macros)
+    # %{sort_type} expands to e.g. if([fresh_feed_change]!=0,"desc","asc");
+    # eval_generate_attribute evaluates it row-wise to "desc" or "asc".
+    d = op_generate_columns(data, {"id": "%{sort_type}"}, macros)
     # [Filter Examples (14)] invert: keep rows whose id is NOT 'asc'/'desc'
     numeric_part, text_part = op_filter_examples(
         d, ["id.equals.asc", "id.equals.desc"], macros,
@@ -290,9 +291,9 @@ def _score_one_parameter(data: pd.DataFrame, macros: Macros) -> pd.DataFrame:
         scored = op_generate_columns(
             normed,
             {"%{parameter_name}_score":
-             'if(lower(%{sort_type})=="asc",'
-             '(attribute(%{parameter_name})*eval(%{weight})),'
-             '(attribute(%{parameter_name})*eval(%{weight})*-1))'},
+             'if(lower("%{sort_type}")=="asc",'
+             '([%{parameter_name}]*eval(%{weight})),'
+             '([%{parameter_name}]*eval(%{weight})*-1))'},
             macros)
         # [Select Attributes (31)] include only <param>_score
         score_col = op_select_attributes(
@@ -309,7 +310,7 @@ def _score_one_parameter(data: pd.DataFrame, macros: Macros) -> pd.DataFrame:
         merged = op_generate_columns(
             merged,
             {"%{parameter_name}_score":
-             'attribute(%{parameter_name}+"_rank")*eval(%{weight})'},
+             '[%{parameter_name}_rank]*eval(%{weight})'},
             macros)
     return merged
 
@@ -351,7 +352,7 @@ def _rank_one_group(group: pd.DataFrame, ranking_info: pd.DataFrame,
 
         # [Generate Macro (2)] sorting_selector + accumulate overall_ranking_score
         macros["sorting_selector"] = eval_generate_macro(
-            'if(lower(%{sort_type})=="desc",1,if(lower(%{sort_type})=="asc",2,3))',
+            'if(lower("%{sort_type}")=="desc",1,if(lower("%{sort_type}")=="asc",2,3))',
             macros)
         # overall_ranking_score = prev + "+" + "[" + param + "_score]"
         macros["overall_ranking_score"] = (
@@ -497,7 +498,7 @@ def sub_all_parameters(macros: Macros, store: IOStore) -> pd.DataFrame:
     # [Pivot (5)] group_by row_id ; columns all_parameters ; first(value)
     wide = op_pivot(cart, group_by=["row_id"],
                     column_grouping="all_parameters",
-                    value_attribute="value", agg="first")
+                    value_attribute="value", agg="first", dropna=False)
     # [Select Attributes (12)] exclude row_id
     wide = op_select_attributes(wide, ["row_id"], include=False, macros=macros)
     # [Rename by Replacing (6)] strip "first(value)_"
@@ -575,7 +576,7 @@ def sub_de_parameterization(df: pd.DataFrame, macros: Macros,
     # [Pivot] group_by Timestamp ; columns short_name ; first(value)
     work = op_pivot(work, group_by=["Timestamp"],
                     column_grouping="short_name",
-                    value_attribute="value", agg="first")
+                    value_attribute="value", agg="first", dropna=False)
     # [Rename by Replacing] strip "first(value)_"
     work = op_rename_by_replacing(work, replace_what=r"first\(value\)_", replace_by="")
     return work

@@ -40,14 +40,23 @@ def _m(key, default=None):
 # ---------------------------------------------------------------------------
 # Step 1 – Load raw data
 # ---------------------------------------------------------------------------
-def load_raw_data(csv_path: str = None) -> pd.DataFrame:
+def load_raw_data(csv_path: str = None,
+                  input_df: pd.DataFrame = None) -> pd.DataFrame:
     """
     Load the join-data dataset.
     Falls back to a local CSV when pull_tables_from_db == 0.
 
     The CSV is expected to contain at least:
       Timestamp, entity_name (furnace ID), and all sensor/tag columns.
+
+    When `input_df` is provided it is used directly (the csv_path / DB read is
+    bypassed entirely).
     """
+    if input_df is not None:
+        logger.info("Using in-memory input_df: %d rows, %d cols",
+                    len(input_df), len(input_df.columns))
+        return input_df.copy()
+
     if _m("pull_tables_from_db", 0) == 1:
         # --- DB path (requires sqlalchemy / pyodbc in your environment) ---
         try:
@@ -206,7 +215,8 @@ def _remember(name: str, df: pd.DataFrame):
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
-def run(csv_path: str = None) -> pd.DataFrame:
+def run(csv_path: str = None,
+        input_df: pd.DataFrame = None) -> pd.DataFrame:
     """
     Execute the full INPUTS (2) subprocess and return the prepared main
     DataFrame.  Also populates STORE["tag"], STORE["tag_details"] and all
@@ -216,6 +226,9 @@ def run(csv_path: str = None) -> pd.DataFrame:
     ----------
     csv_path : str, optional
         Path to the input CSV.  Falls back to DB_CONFIG["repository_entry"].
+    input_df : pd.DataFrame, optional
+        In-memory input DataFrame. When provided, it is used directly and the
+        csv_path / DB read is bypassed.
 
     Returns
     -------
@@ -225,7 +238,7 @@ def run(csv_path: str = None) -> pd.DataFrame:
     logger.info("=== MODULE 01 – INPUTS ===")
 
     # 1. Load raw data
-    df_main = load_raw_data(csv_path)
+    df_main = load_raw_data(csv_path, input_df=input_df)
 
     # 2. Apply temp changes (derive macro columns)
     df_main = apply_temp_changes(df_main)

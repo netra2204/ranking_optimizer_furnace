@@ -117,7 +117,7 @@ def eval_generate_attribute(df: pd.DataFrame,
 
         def row_eval(row: pd.Series) -> Any:
             scope: Dict[str, Any] = {
-                "if": _rm_if,
+                "_rm_if": _rm_if,   # 'if' is a keyword; _rm_to_python rewrites if( -> _rm_if(
                 "lower": _rm_lower,
                 "concat": _rm_concat,
                 "eval": lambda x: float(x) if str(x).strip() not in ("", "nan") else np.nan,
@@ -165,7 +165,7 @@ def eval_generate_macro(expr: str, macros: Macros) -> str:
     """
     resolved = macros.resolve(expr)
     scope = {
-        "if": _rm_if,
+        "_rm_if": _rm_if,   # 'if' is a keyword; _rm_to_python rewrites if( -> _rm_if(
         "lower": _rm_lower,
         "concat": _rm_concat,
         "date_now": _rm_date_now,
@@ -186,9 +186,10 @@ def _safe_ident(col: str) -> str:
 
 def _rm_to_python(expr: str) -> str:
     """Light syntactic translation of RM expression operators to Python."""
-    # RM uses == and != already compatible; string concat with + is fine.
-    # RM `&&` / `||` -> Python and/or (not used here but safe to translate).
     expr = expr.replace("&&", " and ").replace("||", " or ")
+    # `if` is a Python keyword so eval("if(...)") is always a SyntaxError.
+    # Translate RM's if(cond,a,b) to _rm_if(cond,a,b) which is callable.
+    expr = re.sub(r'\bif\s*\(', '_rm_if(', expr)
     return expr
 
 
@@ -278,19 +279,27 @@ def op_pivot(df: pd.DataFrame,
              group_by: List[str],
              column_grouping: str,
              value_attribute: str = "value",
-             agg: str = "first") -> pd.DataFrame:
+             agg: str = "first",
+             dropna: bool = True) -> pd.DataFrame:
     """
     `blending:pivot` : long -> wide.
     Cell aggregation here is always `first`. RM names the resulting columns
     `first(value)_<columnvalue>`; that prefix is stripped later by
     `Rename by Replacing`.
+
+    `dropna` mirrors pandas' pivot_table flag. Keep the default True for the
+    multi-key pivots: dropna=False there expands the index into the full
+    cartesian product of every group_by level, inventing phantom all-NaN rows.
+    Pass dropna=False ONLY for single-level (e.g. row_id) pivots that must keep
+    columns whose values are entirely missing -- RapidMiner keeps such columns.
     """
     agg_func = {"first": "first"}.get(agg, "first")
     wide = (df
             .pivot_table(index=group_by,
                          columns=column_grouping,
                          values=value_attribute,
-                         aggfunc=agg_func)
+                         aggfunc=agg_func,
+                         dropna=dropna)
             .reset_index())
     wide.columns.name = None
     # Re-create RapidMiner's generated column name prefix.
@@ -475,6 +484,8 @@ def op_generate_id(df: pd.DataFrame, offset: int = 0) -> pd.DataFrame:
     column, which is the behaviour relied on here.
     """
     out = df.copy()
+    if "id" in out.columns:
+        out = out.drop(columns=["id"])
     out.insert(0, "id", range(1 + offset, len(out) + 1 + offset))
     return out
 

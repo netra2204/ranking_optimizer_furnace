@@ -27,7 +27,7 @@ No automated testing is performed (per request).
 from __future__ import annotations
 
 import pandas as pd
-
+import os
 from rm_common import Macros, IOStore, LOG
 from parameterization import parameterization
 from ranking import ranking
@@ -54,16 +54,16 @@ def build_default_macros() -> Macros:
     """
     return Macros({
         # --- telemetry ---
-        "case_id": "0",
-        "ranking_model_id": "0",
+        "case_id": "163",
+        "ranking_model_id": "520",
         # --- feature toggles (each '<macro> == "active"' enables a branch) ---
         # "Ranking_Feed_YSB":              "active",   # enable furnace-mode recode
-        # "furnace_system_model_skip_filter": "active",
+        "furnace_system_model_skip_filter": "active",
         # "furnace_system_manual_filter":  "active",
         "score_based_ranking":           "inactive",   # else -> rank-based
         # --- column-name drivers ---
         "furnace_status":   "furnace_status",          # code column to decode
-        "ranking_splitter": "ranking_splitter",        # splitter code column
+        "ranking_splitter": "feed_type",        # splitter code column
         # "sum_parameter_weightage": auto-derived if not provided
     })
 
