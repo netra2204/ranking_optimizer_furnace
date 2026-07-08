@@ -179,7 +179,11 @@ def compute_initial_columns(df: pd.DataFrame) -> pd.DataFrame:
 def extract_row_count_and_shc(df: pd.DataFrame):
     MACROS["Number_of_rows"] = len(df)
     if "shc_ratio" in df.columns and len(df) > 0:
-        MACROS["shc_ratio"] = float(df.iloc[0]["shc_ratio"])
+        # Use the column average (treating blank/NaN as 0) instead of the first
+        # row, so a missing shc_ratio on the first furnace doesn't make the
+        # macro NaN and propagate into Extra_Recycle_Ethane.
+        MACROS["shc_ratio"] = float(
+            pd.to_numeric(df["shc_ratio"], errors="coerce").fillna(0).mean())
     logger.info("Number_of_rows=%d  shc_ratio=%.4f",
                 int(MACROS["Number_of_rows"]), _m("shc_ratio"))
 

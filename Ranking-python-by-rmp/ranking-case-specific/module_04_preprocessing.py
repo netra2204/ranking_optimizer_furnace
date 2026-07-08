@@ -159,6 +159,8 @@ def compute_margins(df: pd.DataFrame) -> pd.DataFrame:
         col("damper_opening") < macro("damper_opening_limit"),
         1, 0
     )
+    df["Margin_in_FG"] =1
+    df["Margin_in_Damper"]=1
     # Quench overhead gas temp margin (always 1)
     df["Quench_OD_Gas_temp_margin"] = 1
 

@@ -145,13 +145,7 @@ def run_pipeline(
     # df_main = module_02_initialization.run(df_main)
 
     # ── Step 3: PARAMETERIZATION ──────────────────────────────────────────────
-    df_param = module_03_parameterization.run(df_main)
-    df_param.to_excel(os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "..",
-        "Results",
-        "united-parameterization.xlsx"
-    ))
+    df_param = module_03_parameterization.run(df_main)    
     # ── Step 4: PRE-PROCESSING ────────────────────────────────────────────────
     # Bypassing initialization & parameterization — data already in wide format
     # df_param = df_main.copy()

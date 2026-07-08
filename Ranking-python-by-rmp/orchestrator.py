@@ -33,7 +33,7 @@ common_main = _load("common_main", "ranking-common-process/main.py")
 
 macros = common_main.build_default_macros()
 store  = common_main.build_io_store(
-    tag_parameter_mapping = pd.read_excel(os.path.join(_INPUTS, "tag-parameter-mapping (1).xlsx"),
+    tag_parameter_mapping = pd.read_excel(os.path.join(_INPUTS, "tag_parameter_mapping_newname_rev3.xlsx"),
                                            keep_default_na=False, na_values=_NA_KEEP_NULL),
     text_code_mapping     = pd.read_excel(os.path.join(_INPUTS, "text-code-mapping.xlsx")),
     ccp_status            = pd.read_excel(os.path.join(_INPUTS, "ccp-status.xlsx")).assign(
@@ -44,7 +44,7 @@ store  = common_main.build_io_store(
     tag                   = pd.DataFrame(),
     furnace_ranking_info  = pd.read_excel(os.path.join(_INPUTS, "furnace-ranking-info.xlsx")),
 )
-input_df = pd.read_excel(os.path.join(_INPUTS, "common-parameterization-input.xlsx"))
+input_df = pd.read_excel(os.path.join(_INPUTS, "wide_format_data_12jan-1am_newname.xlsx"))
 input_df["Timestamp"] = pd.to_datetime(input_df["Timestamp"])
 
 logger.info("----------------COMMON PIPELINE STARTED---------------")
@@ -59,8 +59,8 @@ common_result = input_df.merge(
     on=_join_key, how="left")
 
 # # ── Handoff: save to a temp file ──────────────────────────────────────────────
-# handoff_path = os.path.join(_RESULTS, "common_process_output.xlsx")
-# common_result.to_excel(handoff_path, index=False)
+handoff_path = os.path.join(_RESULTS, "common-result-12jan-26-1am-renamed.xlsx")
+common_result.to_excel(handoff_path, index=False)
 logger.info(f"COMMON PIPELINIE RESULT SHAPE: {common_result.shape}")
 logger.info("----------------COMMON PIPELINE COMPLETED---------------")
 
@@ -69,7 +69,7 @@ try:
     case_main = _load("case_main", "ranking-case-specific/main.py")
 
     case_main.load_store_data(
-        tag_parameter_mapping_csv     = os.path.join(_INPUTS, "tag-parameter-mapping (1).xlsx"),
+        tag_parameter_mapping_csv     = os.path.join(_INPUTS, "tag_parameter_mapping_newname_rev3.xlsx"),
         ropt_extract_macro_values_csv = os.path.join(_INPUTS, "parameters.xlsx"),
         inferred_tags_1_csv           = os.path.join(_INPUTS, "inferred_tags_1.xlsx"),
         inferred_tags_2_csv           = os.path.join(_INPUTS, "inferred_tags_2.xlsx"),
@@ -78,7 +78,7 @@ try:
     )
 
     final_result = case_main.run_pipeline(input_df=common_result)
-    final_result.to_excel(os.path.join(_RESULTS, "case-specific-long-format-result-after-common.xlsx"), index=False)
+    final_result.to_excel(os.path.join(_RESULTS, "12jan-26-1am-case-specific-renamed-result.xlsx"), index=False)
 except Exception as exc:
         logger.error("Pipeline failed: %s", exc)
         sys.exit(1)
