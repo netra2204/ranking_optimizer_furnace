@@ -1,4 +1,5 @@
 import sys, os, importlib.util, logging
+from datetime import datetime
 import pandas as pd
 
 logging.basicConfig(
@@ -92,7 +93,12 @@ try:
     )
 
     final_result = case_main.run_pipeline(input_df=common_result)
-    # final_result.to_excel(os.path.join(_RESULTS, "12jan-26-1am-case-specific-renamed-result.xlsx"), index=False)
+    _run_stamp  = datetime.now().strftime("%H-%M-%S")                 # current run time
+    _data_ts    = pd.to_datetime(input_df["Timestamp"].iloc[0])       # input data timestamp
+    _data_stamp = _data_ts.strftime("%d-%m-%Y-%I%p")                  # date-month-year-hour AM/PM
+    _out_name   = f"{_run_stamp}_ranking-final-result_{_data_stamp}.xlsx"
+    final_result.to_excel(os.path.join(_RESULTS, _out_name), index=False)
+    logger.info("Final result saved -> %s", _out_name)
 except Exception as exc:
         logger.error("Pipeline failed: %s", exc)
         sys.exit(1)
