@@ -56,15 +56,41 @@ def sub_text_code_mapping(df: pd.DataFrame, macros: Macros,
                  keys={"%{furnace_status}": "code"},
                  join_type="left", macros=macros)
 
-    # [Recall (6)] text_code_mapping
-    map2 = store.recall("text_code_mapping")
-    # [Rename (5)] text -> %{ranking_splitter}_text
-    map2 = op_rename(map2, {"text": "%{ranking_splitter}_text"}, macros)
-    # [Join (7)] left ; key %{ranking_splitter} = code
-    df = op_join(df, map2,
-                 keys={"%{ranking_splitter}": "code"},
-                 join_type="left", macros=macros)
+    # [Join (7)] decode the splitter code into %{ranking_splitter}_text.
+    # The wide input can supply feed_type either as an integer code (e.g. 5) or
+    # as the already-decoded text (e.g. "Ethane"). When it is a code we run the
+    # original text_code_mapping join; when it is text we skip the join and
+    # derive the _text column directly (lower-cased/stripped so it matches the
+    # case-sensitive, lower-case filters applied downstream).
+    splitter_col = macros.resolve("%{ranking_splitter}")
+    splitter_text_col = macros.resolve("%{ranking_splitter}_text")
+    if _is_numeric_code_column(df, splitter_col):
+        # [Recall (6)] text_code_mapping
+        map2 = store.recall("text_code_mapping")
+        # [Rename (5)] text -> %{ranking_splitter}_text
+        map2 = op_rename(map2, {"text": "%{ranking_splitter}_text"}, macros)
+        # [Join (7)] left ; key %{ranking_splitter} = code
+        df = op_join(df, map2,
+                     keys={"%{ranking_splitter}": "code"},
+                     join_type="left", macros=macros)
+    elif splitter_col in df.columns:
+        df = df.copy()
+        df[splitter_text_col] = (
+            df[splitter_col].astype(str).str.strip().str.lower())
     return df          # -> out 1
+
+
+def _is_numeric_code_column(df: pd.DataFrame, col: str) -> bool:
+    """True when every non-null value in ``col`` is an integer code (so the
+    text_code_mapping join applies); False when it holds decoded text such as
+    "Ethane"/"Propane". An empty/all-null column is treated as codes so the
+    original join path is preserved."""
+    if col not in df.columns:
+        return True
+    values = df[col].dropna()
+    if values.empty:
+        return True
+    return pd.to_numeric(values, errors="coerce").notna().all()
 
 
 # -----------------------------------------------------------------------------
