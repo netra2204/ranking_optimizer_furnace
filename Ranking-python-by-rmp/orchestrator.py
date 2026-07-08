@@ -25,8 +25,22 @@ def _load(alias: str, rel_path: str):
     sys.path.insert(0, os.path.dirname(path))   # let the module resolve its own sibling imports
     spec = importlib.util.spec_from_file_location(alias, path)
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[alias] = mod          # needed so dataclasses/typing can resolve the module
     spec.loader.exec_module(mod)
     return mod
+
+# ── 0. Run pre_rank ───────────────────────────────────────────────────────────
+pre_rank = _load("pre_rank_pipeline", "pre_rank/pipeline.py")
+
+logger.info("----------------PRE-RANK STARTED---------------")
+pre_rank_result = pre_rank.run_pre_rank(
+    config_path          = os.path.join(_INPUTS, "config_overrides.xlsx"),
+    common_inferred_path = os.path.join(_INPUTS, "common-inferred.xlsx"),
+    wide_input_path      = os.path.join(_INPUTS, "wide-12jan-1am-no-manually-data-added.xlsx"),
+    overwrite_existing   = True,
+)
+logger.info(f"PRE-RANK RESULT SHAPE: {pre_rank_result.wide_output.shape}")
+logger.info("----------------PRE-RANK COMPLETED---------------")
 
 # ── 1. Run ranking-common-process ─────────────────────────────────────────────
 common_main = _load("common_main", "ranking-common-process/main.py")
@@ -44,7 +58,7 @@ store  = common_main.build_io_store(
     tag                   = pd.DataFrame(),
     furnace_ranking_info  = pd.read_excel(os.path.join(_INPUTS, "furnace-ranking-info.xlsx")),
 )
-input_df = pd.read_excel(os.path.join(_INPUTS, "wide_format_data_12jan-1am_newname.xlsx"))
+input_df = pre_rank_result.wide_output
 input_df["Timestamp"] = pd.to_datetime(input_df["Timestamp"])
 
 logger.info("----------------COMMON PIPELINE STARTED---------------")
@@ -59,8 +73,8 @@ common_result = input_df.merge(
     on=_join_key, how="left")
 
 # # ── Handoff: save to a temp file ──────────────────────────────────────────────
-handoff_path = os.path.join(_RESULTS, "common-result-12jan-26-1am-renamed.xlsx")
-common_result.to_excel(handoff_path, index=False)
+# handoff_path = os.path.join(_RESULTS, "common-result-12jan-26-1am-renamed.xlsx")
+# common_result.to_excel(handoff_path, index=False)
 logger.info(f"COMMON PIPELINIE RESULT SHAPE: {common_result.shape}")
 logger.info("----------------COMMON PIPELINE COMPLETED---------------")
 
@@ -78,7 +92,7 @@ try:
     )
 
     final_result = case_main.run_pipeline(input_df=common_result)
-    final_result.to_excel(os.path.join(_RESULTS, "12jan-26-1am-case-specific-renamed-result.xlsx"), index=False)
+    # final_result.to_excel(os.path.join(_RESULTS, "12jan-26-1am-case-specific-renamed-result.xlsx"), index=False)
 except Exception as exc:
         logger.error("Pipeline failed: %s", exc)
         sys.exit(1)
