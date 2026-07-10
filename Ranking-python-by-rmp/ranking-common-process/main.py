@@ -32,6 +32,16 @@ from rm_common import Macros, IOStore, LOG
 from parameterization import parameterization
 from ranking import ranking
 
+# NA tokens with "null"/"NULL"/"Null" removed so those literals survive as text
+# in the tag_parameter_mapping parameter_name column (they are meaningful there).
+try:
+    from pandas._libs.parsers import STR_NA_VALUES as _PD_NA
+    _NA_KEEP_NULL = list(_PD_NA - {"null", "NULL", "Null"})
+except Exception:                                   # pragma: no cover - version drift
+    _NA_KEEP_NULL = ["", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN",
+                     "-NaN", "-nan", "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA",
+                     "NaN", "None", "n/a", "nan"]
+
 def run_process(example_set: pd.DataFrame,
                 macros: Macros,
                 store: IOStore) -> pd.DataFrame:
@@ -68,7 +78,7 @@ def build_default_macros() -> Macros:
     })
 
 
-def build_io_store(**objects: pd.DataFrame) -> IOStore:
+def build_io_store(**objects) -> IOStore:
     """
     Assemble the Recall repository. Required keys (produced upstream):
       tag_parameter_mapping : [short_name, parameter_name, entity_name, ...]
@@ -79,5 +89,27 @@ def build_io_store(**objects: pd.DataFrame) -> IOStore:
       entity_parameter      : [parameter_id, entity_name, formula, ...]
       tag                   : [name, short_name, ...]
       furnace_ranking_info  : [parameter_name, sort_type, parameter_weightage, ...]
+
+    Each value may be either:
+      * a ready-made ``pd.DataFrame`` (used as-is), or
+      * an Excel source spec ``(path, sheet_name)`` which is read here.
+
+    When read from a spec, two sheet-specific rules apply:
+      * ``tag_parameter_mapping`` preserves the literal "null"/"NULL"/"Null"
+        text in ``parameter_name`` (keep_default_na=False, custom na_values).
+      * ``ccp_status`` gets its ``Timestamp`` column parsed to datetime.
     """
-    return IOStore(objects)
+    resolved: dict = {}
+    for key, value in objects.items():
+        if isinstance(value, pd.DataFrame):
+            resolved[key] = value
+            continue
+        # Excel source spec: (path, sheet_name)
+        path, sheet = value
+        na_kwargs = ({"keep_default_na": False, "na_values": _NA_KEEP_NULL}
+                     if key == "tag_parameter_mapping" else {})
+        df = pd.read_excel(path, sheet_name=sheet, **na_kwargs)
+        if key == "ccp_status":
+            df = df.assign(Timestamp=lambda d: pd.to_datetime(d["Timestamp"]))
+        resolved[key] = df
+    return IOStore(resolved)

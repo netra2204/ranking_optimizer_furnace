@@ -13,13 +13,8 @@ _BASE   = os.path.dirname(os.path.abspath(__file__))
 _INPUTS = os.path.join(_BASE, "Python-Inputs")
 _RESULTS = os.path.join(_BASE, "Results")
 
-try:
-    from pandas._libs.parsers import STR_NA_VALUES as _PD_NA
-    _NA_KEEP_NULL = list(_PD_NA - {"null", "NULL", "Null"})
-except Exception:                                   # pragma: no cover - version drift
-    _NA_KEEP_NULL = ["", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN",
-                     "-NaN", "-nan", "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA",
-                     "NaN", "None", "n/a", "nan"]
+# Single compiled workbook holding every input as its own sheet.
+_COMPILED = os.path.join(_INPUTS, "ranking-inputs-compiled.xlsx")
 
 def _load(alias: str, rel_path: str):
     path = os.path.join(os.path.dirname(__file__), rel_path)
@@ -35,9 +30,12 @@ pre_rank = _load("pre_rank_pipeline", "pre_rank/pipeline.py")
 
 logger.info("----------------PRE-RANK STARTED---------------")
 pre_rank_result = pre_rank.run_pre_rank(
-    config_path          = os.path.join(_INPUTS, "config_overrides.xlsx"),
-    common_inferred_path = os.path.join(_INPUTS, "common-inferred.xlsx"),
-    wide_input_path      = os.path.join(_INPUTS, "wide-12jan-1am-no-manually-data-added.xlsx"),
+    config_path          = _COMPILED,
+    common_inferred_path = _COMPILED,
+    wide_input_path      = _COMPILED,
+    config_sheet         = "config_overrides",
+    template_sheet       = "common-inferred",
+    wide_sheet           = "wide-12jan-1am-original",
     overwrite_existing   = True,
 )
 logger.info(f"PRE-RANK RESULT SHAPE: {pre_rank_result.wide_output.shape}")
@@ -48,16 +46,17 @@ common_main = _load("common_main", "ranking-common-process/main.py")
 
 macros = common_main.build_default_macros()
 store  = common_main.build_io_store(
-    tag_parameter_mapping = pd.read_excel(os.path.join(_INPUTS, "tag_parameter_mapping_newname_rev3.xlsx"),
-                                           keep_default_na=False, na_values=_NA_KEEP_NULL),
-    text_code_mapping     = pd.read_excel(os.path.join(_INPUTS, "text-code-mapping.xlsx")),
-    ccp_status            = pd.read_excel(os.path.join(_INPUTS, "ccp-status.xlsx")).assign(
-                              Timestamp=lambda df: pd.to_datetime(df["Timestamp"])),
-    entity                = pd.read_excel(os.path.join(_INPUTS, "entity.xlsx")),
+    # Excel sources given as (path, sheet); special handling (na-values for
+    # tag_parameter_mapping, Timestamp parse for ccp_status) happens inside
+    # build_io_store so this orchestrator never calls read_excel directly.
+    tag_parameter_mapping = (_COMPILED, "tpm-newname-rev3"),
+    text_code_mapping     = (_COMPILED, "text-code-mapping"),
+    ccp_status            = (_COMPILED, "ccp-status"),
+    entity                = (_COMPILED, "entity"),
     parameters            = pd.DataFrame(),
     entity_parameter      = pd.DataFrame(),
     tag                   = pd.DataFrame(),
-    furnace_ranking_info  = pd.read_excel(os.path.join(_INPUTS, "furnace-ranking-info.xlsx")),
+    furnace_ranking_info  = (_COMPILED, "furnace-ranking-info"),
 )
 input_df = pre_rank_result.wide_output
 input_df["Timestamp"] = pd.to_datetime(input_df["Timestamp"])
@@ -84,12 +83,18 @@ try:
     case_main = _load("case_main", "ranking-case-specific/main.py")
 
     case_main.load_store_data(
-        tag_parameter_mapping_csv     = os.path.join(_INPUTS, "tag_parameter_mapping_newname_rev3.xlsx"),
-        ropt_extract_macro_values_csv = os.path.join(_INPUTS, "parameters.xlsx"),
-        inferred_tags_1_csv           = os.path.join(_INPUTS, "inferred_tags_1.xlsx"),
-        inferred_tags_2_csv           = os.path.join(_INPUTS, "inferred_tags_2.xlsx"),
-        inferred_tags_3_csv           = os.path.join(_INPUTS, "inferred_tags_3.xlsx"),
-        inferred_tags_4_csv           = os.path.join(_INPUTS, "inferred_tags_4.xlsx"),
+        tag_parameter_mapping_csv       = _COMPILED,
+        ropt_extract_macro_values_csv   = _COMPILED,
+        inferred_tags_1_csv             = _COMPILED,
+        inferred_tags_2_csv             = _COMPILED,
+        inferred_tags_3_csv             = _COMPILED,
+        inferred_tags_4_csv             = _COMPILED,
+        tag_parameter_mapping_sheet     = "tpm-newname-rev3",
+        ropt_extract_macro_values_sheet = "parameters",
+        inferred_tags_1_sheet           = "inferred_tags_1",
+        inferred_tags_2_sheet           = "inferred_tags_2",
+        inferred_tags_3_sheet           = "inferred_tags_3",
+        inferred_tags_4_sheet           = "inferred_tags_4",
     )
 
     final_result = case_main.run_pipeline(input_df=common_result)

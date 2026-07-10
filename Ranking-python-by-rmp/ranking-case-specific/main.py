@@ -68,21 +68,31 @@ def load_store_data(
     inferred_tags_2_csv: str = None,
     inferred_tags_3_csv: str = None,
     inferred_tags_4_csv: str = None,
+    tag_parameter_mapping_sheet=None,
+    ropt_extract_macro_values_sheet=None,
+    inferred_tags_1_sheet=None,
+    inferred_tags_2_sheet=None,
+    inferred_tags_3_sheet=None,
+    inferred_tags_4_sheet=None,
 ):
     """
     Pre-populate STORE with all DataFrames required by modules 05 onwards.
     Call this before run_pipeline() when bypassing modules 02 and 03.
+
+    Each ``*_sheet`` selects a sheet when the matching path is an Excel workbook
+    (e.g. a single compiled workbook holding every input sheet). Leave it None to
+    read the first sheet (or when the path is a CSV) — the previous behaviour.
     """
     loaders = {
-        "tag_parameter_mapping":         tag_parameter_mapping_csv,
-        "ROPT_extract_macro_value":      ropt_extract_macro_values_csv,
-        "inferred_tags_1":               inferred_tags_1_csv,
-        "inferred_tags_2":               inferred_tags_2_csv,
-        "inferred_tags_3":               inferred_tags_3_csv,
-        "inferred_tags_4":               inferred_tags_4_csv,
+        "tag_parameter_mapping":         (tag_parameter_mapping_csv, tag_parameter_mapping_sheet),
+        "ROPT_extract_macro_value":      (ropt_extract_macro_values_csv, ropt_extract_macro_values_sheet),
+        "inferred_tags_1":               (inferred_tags_1_csv, inferred_tags_1_sheet),
+        "inferred_tags_2":               (inferred_tags_2_csv, inferred_tags_2_sheet),
+        "inferred_tags_3":               (inferred_tags_3_csv, inferred_tags_3_sheet),
+        "inferred_tags_4":               (inferred_tags_4_csv, inferred_tags_4_sheet),
     }
 
-    for store_key, path in loaders.items():
+    for store_key, (path, sheet) in loaders.items():
         if path is None:
             # Store empty DataFrame as safe fallback
             STORE[store_key] = pd.DataFrame()
@@ -93,11 +103,14 @@ def load_store_data(
             na_kwargs = ({"keep_default_na": False, "na_values": _NA_KEEP_NULL}
                          if store_key == "tag_parameter_mapping" else {})
             if path.endswith(".xlsx") or path.endswith(".xls"):
-                STORE[store_key] = pd.read_excel(path, **na_kwargs)
+                sheet_kwargs = {"sheet_name": sheet} if sheet is not None else {}
+                STORE[store_key] = pd.read_excel(path, **sheet_kwargs, **na_kwargs)
             else:
                 STORE[store_key] = pd.read_csv(path, **na_kwargs)
-            logger.info("STORE['%s'] → loaded from '%s' (%d rows)",
-                        store_key, path, len(STORE[store_key]))
+            logger.info("STORE['%s'] → loaded from '%s'%s (%d rows)",
+                        store_key, path,
+                        f" [sheet={sheet}]" if sheet is not None else "",
+                        len(STORE[store_key]))
             
 # =============================================================================
 # Pipeline orchestrator
