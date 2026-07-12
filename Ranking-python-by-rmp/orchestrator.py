@@ -25,8 +25,41 @@ def _load(alias: str, rel_path: str):
     spec.loader.exec_module(mod)
     return mod
 
-# ── 0. Run pre_rank ───────────────────────────────────────────────────────────
-pre_rank = _load("pre_rank_pipeline", "pre_rank/pipeline.py")
+# ── 0. Run pre-processing ─────────────────────────────────────────────────────
+# Expand the compressed tag-parameter mapping (tpm-newname-rev3) using the
+# furnace/pass counts in config_overrides, and store the result back into the
+# compiled workbook as the sheet "expanded-tpm-newname-rev3".
+pre_processing = _load("pre_processing", "01-pre-processing/expand_tag_mapping.py")
+
+logger.info("----------------PRE-PROCESSING STARTED---------------")
+_EXPANDED_TPM_SHEET = "expanded-tpm-newname-rev3"
+expanded_tpm = pre_processing.run_pre_processing(
+    compiled_path = _COMPILED,
+    config_sheet  = "config_overrides",
+    tpm_sheet     = "tpm-newname-rev3",
+    output_sheet  = _EXPANDED_TPM_SHEET,
+)
+logger.info(f"EXPANDED TPM SHAPE: {expanded_tpm.shape}")
+
+# Build the wide-format pre-rank input from the KPI-calc output DB (KPI_DB.json),
+# filtered to a single timestamp and to the expanded tag list. The result is
+# stored back into the compiled workbook as the sheet "wide-from-kpi-db".
+output_db_to_wide = _load("output_db_to_wide", "01-pre-processing/output-db-to-wide.py")
+_KPI_DB       = os.path.join(_INPUTS, "KPI_DB.json")
+_WIDE_SHEET   = "wide-from-kpi-db"
+_WIDE_TS      = "2026-01-12 00:00:00"   # static target timestamp (Jan-12 batch)
+wide_from_db = output_db_to_wide.run_output_db_to_wide(
+    json_path      = _KPI_DB,
+    compiled_path  = _COMPILED,
+    expanded_sheet = _EXPANDED_TPM_SHEET,
+    timestamp      = _WIDE_TS,
+    output_sheet   = _WIDE_SHEET,
+)
+logger.info(f"WIDE-FROM-DB SHAPE: {wide_from_db.shape}")
+logger.info("----------------PRE-PROCESSING COMPLETED---------------")
+
+# ── 1. Run pre_rank ───────────────────────────────────────────────────────────
+pre_rank = _load("pre_rank_pipeline", "02-pre-rank/pipeline.py")
 
 logger.info("----------------PRE-RANK STARTED---------------")
 pre_rank_result = pre_rank.run_pre_rank(
@@ -35,21 +68,21 @@ pre_rank_result = pre_rank.run_pre_rank(
     wide_input_path      = _COMPILED,
     config_sheet         = "config_overrides",
     template_sheet       = "common-inferred",
-    wide_sheet           = "wide-12jan-1am-original",
+    wide_sheet           = _WIDE_SHEET,
     overwrite_existing   = True,
 )
 logger.info(f"PRE-RANK RESULT SHAPE: {pre_rank_result.wide_output.shape}")
 logger.info("----------------PRE-RANK COMPLETED---------------")
 
 # ── 1. Run ranking-common-process ─────────────────────────────────────────────
-common_main = _load("common_main", "ranking-common-process/main.py")
+common_main = _load("common_main", "03-ranking-common-process/main.py")
 
 macros = common_main.build_default_macros()
 store  = common_main.build_io_store(
     # Excel sources given as (path, sheet); special handling (na-values for
     # tag_parameter_mapping, Timestamp parse for ccp_status) happens inside
     # build_io_store so this orchestrator never calls read_excel directly.
-    tag_parameter_mapping = (_COMPILED, "tpm-newname-rev3"),
+    tag_parameter_mapping = (_COMPILED, _EXPANDED_TPM_SHEET),
     text_code_mapping     = (_COMPILED, "text-code-mapping"),
     ccp_status            = (_COMPILED, "ccp-status"),
     entity                = (_COMPILED, "entity"),
@@ -80,7 +113,7 @@ logger.info("----------------COMMON PIPELINE COMPLETED---------------")
 
 # ── 2. Run ranking-case-specific ──────────────────────────────────────────────
 try:
-    case_main = _load("case_main", "ranking-case-specific/main.py")
+    case_main = _load("case_main", "04-ranking-case-specific/main.py")
 
     case_main.load_store_data(
         tag_parameter_mapping_csv       = _COMPILED,
@@ -89,7 +122,7 @@ try:
         inferred_tags_2_csv             = _COMPILED,
         inferred_tags_3_csv             = _COMPILED,
         inferred_tags_4_csv             = _COMPILED,
-        tag_parameter_mapping_sheet     = "tpm-newname-rev3",
+        tag_parameter_mapping_sheet     = _EXPANDED_TPM_SHEET,
         ropt_extract_macro_values_sheet = "parameters",
         inferred_tags_1_sheet           = "inferred_tags_1",
         inferred_tags_2_sheet           = "inferred_tags_2",
