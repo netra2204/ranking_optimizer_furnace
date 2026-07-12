@@ -170,22 +170,36 @@ def _recall(name: str) -> pd.DataFrame:
     return STORE.get(name, pd.DataFrame())
 
 
+def _recall_inferred_tags(category: int) -> pd.DataFrame:
+    """Recall the combined inferred-tags table and keep only one Category.
+
+    The four legacy inferred_tags_1..4 sheets are now one sheet
+    (``inferred_tags_case_specific``) with a ``Category`` column; each caller
+    filters to the category it used to load from its own sheet.
+    """
+    df = _recall("inferred_tags_case_specific")
+    if df is None or df.empty or "Category" not in df.columns:
+        return df if df is not None else pd.DataFrame()
+    return df[df["Category"] == category].reset_index(drop=True)
+
+
 # ===========================================================================
 # Inferred-tag evaluation
 # Mirrors Loop (3) / Loop (81) / Loop (66) — all do the same thing:
 #   for each (tag_name, formula) in inferred_tags_N:
 #       df[tag_name] = df.eval(formula)
 # ===========================================================================
-def _evaluate_inferred_tags(df: pd.DataFrame, tags_store_name: str) -> pd.DataFrame:
-    """Apply formulas from STORE[tags_store_name] to df in place (returns df)."""
-    df_tags = _recall(tags_store_name)
+def _evaluate_inferred_tags(df: pd.DataFrame, category: int) -> pd.DataFrame:
+    """Apply the combined inferred-tags formulas (filtered to ``category``) to
+    df in place (returns df)."""
+    df_tags = _recall_inferred_tags(category)
     if df_tags is None or df_tags.empty:
         logger.info("inferred tag data not found")
         return df
 
     if "Inferred_tag" not in df_tags.columns or "Inferred_tag_formula" not in df_tags.columns:
-        logger.debug("inferred-tag store '%s' missing required columns – skipping eval.",
-                     tags_store_name)
+        logger.debug("inferred-tag data (Category %s) missing required columns – skipping eval.",
+                     category)
         return df
 
     df = df.copy()
@@ -690,8 +704,8 @@ def _update_conversion_bands(df: pd.DataFrame) -> pd.DataFrame:
         else:
             work = _topN_bound_assignment(work)
 
-    # ── Evaluate inferred_tags_3 (per-row formulas) ───────────────────────
-    work = _evaluate_inferred_tags(work, "inferred_tags_3")
+    # ── Evaluate inferred_tags Category 3 (per-row formulas) ──────────────
+    work = _evaluate_inferred_tags(work, 3)
 
     # ── Rename New_Overall_conversion → New_Overall_Conversion_for_Single_Furnace (Rename 2) ──
     if "New_Overall_Conversion_for_Single_Furnace" in work.columns and "New_Overall_conversion" not in work.columns:
@@ -1051,9 +1065,9 @@ def _enumerate_conversion_grid(df_per_row: pd.DataFrame) -> Dict[str, float]:
         # Build per-row table for this combo
         df_combo = _build_per_row_conv_table(df_base, combo_n)
 
-        # Evaluate inferred_tags_2 (the formulas for del_ethylene, Heat,
-        # Temp_Ethylene_Production, etc.)
-        df_combo = _evaluate_inferred_tags(df_combo, "inferred_tags_2")
+        # Evaluate inferred_tags Category 2 (the formulas for del_ethylene,
+        # Heat, Temp_Ethylene_Production, etc.)
+        df_combo = _evaluate_inferred_tags(df_combo, 2)
 
         # Aggregate (84)
         agg = _aggregate_combo(df_combo)
@@ -1128,8 +1142,8 @@ def _finalise_combo_and_update_max_benefit(df_per_row: pd.DataFrame,
     n     = int(min(_mi("No_of_rows", 0), len(combo), len(df_per_row)))
     df_win = _build_per_row_conv_table(df_per_row, combo[:n])
 
-    # Recall (41) inferred_tags_2 + re-eval (RM uses tags_2 here too)
-    df_win = _evaluate_inferred_tags(df_win, "inferred_tags_2")
+    # Recall (41) inferred_tags Category 2 + re-eval (RM uses tags_2 here too)
+    df_win = _evaluate_inferred_tags(df_win, 2)
 
     # Generate Attributes (52): SPC_*, flag_nox
     if "conversion_bias" not in df_win.columns:

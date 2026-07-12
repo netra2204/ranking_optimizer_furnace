@@ -118,16 +118,10 @@ try:
     case_main.load_store_data(
         tag_parameter_mapping_csv       = _COMPILED,
         ropt_extract_macro_values_csv   = _COMPILED,
-        inferred_tags_1_csv             = _COMPILED,
-        inferred_tags_2_csv             = _COMPILED,
-        inferred_tags_3_csv             = _COMPILED,
-        inferred_tags_4_csv             = _COMPILED,
+        inferred_tags_csv               = _COMPILED,
         tag_parameter_mapping_sheet     = _EXPANDED_TPM_SHEET,
         ropt_extract_macro_values_sheet = "parameters",
-        inferred_tags_1_sheet           = "inferred_tags_1",
-        inferred_tags_2_sheet           = "inferred_tags_2",
-        inferred_tags_3_sheet           = "inferred_tags_3",
-        inferred_tags_4_sheet           = "inferred_tags_4",
+        inferred_tags_sheet             = "inferred_tags_case_specific",
     )
 
     final_result = case_main.run_pipeline(input_df=common_result)

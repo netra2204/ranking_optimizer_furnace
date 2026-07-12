@@ -64,16 +64,10 @@ except Exception:                                   # pragma: no cover - version
 def load_store_data(
     tag_parameter_mapping_csv: str = None,
     ropt_extract_macro_values_csv: str = None,
-    inferred_tags_1_csv: str = None,
-    inferred_tags_2_csv: str = None,
-    inferred_tags_3_csv: str = None,
-    inferred_tags_4_csv: str = None,
+    inferred_tags_csv: str = None,
     tag_parameter_mapping_sheet=None,
     ropt_extract_macro_values_sheet=None,
-    inferred_tags_1_sheet=None,
-    inferred_tags_2_sheet=None,
-    inferred_tags_3_sheet=None,
-    inferred_tags_4_sheet=None,
+    inferred_tags_sheet=None,
 ):
     """
     Pre-populate STORE with all DataFrames required by modules 05 onwards.
@@ -86,10 +80,10 @@ def load_store_data(
     loaders = {
         "tag_parameter_mapping":         (tag_parameter_mapping_csv, tag_parameter_mapping_sheet),
         "ROPT_extract_macro_value":      (ropt_extract_macro_values_csv, ropt_extract_macro_values_sheet),
-        "inferred_tags_1":               (inferred_tags_1_csv, inferred_tags_1_sheet),
-        "inferred_tags_2":               (inferred_tags_2_csv, inferred_tags_2_sheet),
-        "inferred_tags_3":               (inferred_tags_3_csv, inferred_tags_3_sheet),
-        "inferred_tags_4":               (inferred_tags_4_csv, inferred_tags_4_sheet),
+        # Single combined inferred-tags table; recall sites filter it by the
+        # 'Category' column (1-4) to get the tags they previously loaded from
+        # the separate inferred_tags_1..4 sheets.
+        "inferred_tags_case_specific":   (inferred_tags_csv, inferred_tags_sheet),
     }
 
     for store_key, (path, sheet) in loaders.items():

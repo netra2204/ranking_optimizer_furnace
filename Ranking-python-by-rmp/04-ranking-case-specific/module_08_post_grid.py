@@ -95,6 +95,19 @@ def _recall(name: str) -> pd.DataFrame:
     return STORE.get(name, pd.DataFrame())
 
 
+def _recall_inferred_tags(category: int) -> pd.DataFrame:
+    """Recall the combined inferred-tags table and keep only one Category.
+
+    The four legacy inferred_tags_1..4 sheets are now one sheet
+    (``inferred_tags_case_specific``) with a ``Category`` column; each caller
+    filters to the category it used to load from its own sheet.
+    """
+    df = _recall("inferred_tags_case_specific")
+    if df is None or df.empty or "Category" not in df.columns:
+        return df if df is not None else pd.DataFrame()
+    return df[df["Category"] == category].reset_index(drop=True)
+
+
 def _remember(name: str, df: pd.DataFrame) -> None:
     STORE[name] = df.copy() if isinstance(df, pd.DataFrame) else df
 
@@ -254,12 +267,12 @@ def _evaluate_inferred_tags(df: pd.DataFrame) -> pd.DataFrame:
     `del_ethylene` is itself one of these inferred tags. We DO NOT
     pre-compute or overwrite it — the formula owns that column.
     """
-    df_tags = _recall("inferred_tags_1")
+    df_tags = _recall_inferred_tags(1)
     if df_tags is None or df_tags.empty:
-        logger.info("inferred_tags_1 empty – skipping per-row inferred-tag eval.")
+        logger.info("inferred_tags (Category 1) empty – skipping per-row inferred-tag eval.")
         return df
     if {"Inferred_tag", "Inferred_tag_formula"}.issubset(df_tags.columns) is False:
-        logger.warning("inferred_tags_1 missing required columns – skipping.")
+        logger.warning("inferred_tags (Category 1) missing required columns – skipping.")
         return df
 
     # Extract Macro (430) — inferred_tags_egs (row count)

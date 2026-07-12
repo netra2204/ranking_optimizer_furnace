@@ -52,6 +52,19 @@ def _recall(name: str) -> pd.DataFrame:
     return df
 
 
+def _recall_inferred_tags(category: int) -> pd.DataFrame:
+    """Recall the combined inferred-tags table and keep only one Category.
+
+    The four legacy inferred_tags_1..4 sheets are now one sheet
+    (``inferred_tags_case_specific``) with a ``Category`` column; each caller
+    filters to the category it used to load from its own sheet.
+    """
+    df = _recall("inferred_tags_case_specific")
+    if df is None or df.empty or "Category" not in df.columns:
+        return df if df is not None else pd.DataFrame()
+    return df[df["Category"] == category].reset_index(drop=True)
+
+
 def _remember(name: str, df: pd.DataFrame):
     STORE[name] = df.copy()
 
@@ -325,13 +338,16 @@ def get_optimization_status(row):
     
     return "No cracking"
 
-def evaluate_inferred_tags(df: pd.DataFrame, tag_store_name: str = "inferred_tags_4") -> pd.DataFrame:
+def evaluate_inferred_tags(df: pd.DataFrame, category: int = 4) -> pd.DataFrame:
     """
     For each (Inferred_tag, Inferred_tag_formula) row, evaluate the formula
     expression against each row of df and add the result as a new column.
     Uses eval() mirroring RapidMiner's eval(%{Inferred_tag_formula}).
+
+    Tags come from the combined inferred-tags sheet filtered to ``category``
+    (was the standalone inferred_tags_4 sheet).
     """
-    df_tags = _recall(tag_store_name)
+    df_tags = _recall_inferred_tags(category)
     if df_tags.empty:
         return df
 
