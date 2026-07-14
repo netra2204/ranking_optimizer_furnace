@@ -26,20 +26,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# PATH TO THE EXCEL OVERRIDE FILE
+# PATH TO THE COMPILED INPUT WORKBOOK + OVERRIDE SHEET
 # ---------------------------------------------------------------------------
-# Change this to an absolute path or a path relative to this file.
-# Set to None to skip Excel loading entirely.
-# EXCEL_CONFIG_PATH: str | None = os.path.join(
-#     os.path.dirname(os.path.abspath(__file__)),
-#     r"C:\Users\netra.joshi\Documents\POC\Ranking-python-by-rmp\input-data\config_overrides.xlsx",
-# )
+# All case-specific inputs now come from the single compiled workbook
+# (ranking-inputs-compiled.xlsx). Config overrides (incl. NUM_FURNACES /
+# NUM_PASSES) are read from its "config_overrides" sheet.
+# Set EXCEL_CONFIG_PATH to None to skip Excel loading entirely.
 EXCEL_CONFIG_PATH: str | None = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
     "Python-Inputs",
-    "config_overrides.xlsx"
+    "ranking-inputs-compiled.xlsx"
 )
+CONFIG_OVERRIDES_SHEET: str = "config_overrides"
 # ---------------------------------------------------------------------------
 # HARDCODED DEFAULTS  (used when Excel loading is disabled or the key is absent)
 # ---------------------------------------------------------------------------
@@ -97,8 +96,9 @@ def _coerce(value):
 
 def _load_excel_overrides(path: str | None) -> dict:
     """
-    Read the single 'config_overrides' sheet from *path* and return a flat dict
-    of {variable_name: value} for every row that has a recognised key.
+    Read the 'config_overrides' sheet from the compiled workbook at *path* and
+    return a flat dict of {variable_name: value} for every row that has a
+    recognised key.
 
     The loader searches _INPUTS_DEFAULTS, _PIPELINE_MACROS_DEFAULTS, and
     _MACROS_OVERRIDEABLE to validate keys — no source_dict column needed.
@@ -114,13 +114,13 @@ def _load_excel_overrides(path: str | None) -> dict:
         return {}
 
     if not os.path.exists(path):
-        logger.warning("Excel config not found at %s – using hardcoded defaults.", path)
+        logger.warning("Compiled workbook not found at %s – using hardcoded defaults.", path)
         return {}
 
     try:
         wb = load_workbook(path, data_only=True, read_only=True)
     except Exception as exc:
-        logger.error("Failed to open Excel config %s: %s – using defaults.", path, exc)
+        logger.error("Failed to open compiled workbook %s: %s – using defaults.", path, exc)
         return {}
 
     # All valid keys across all three dicts
@@ -130,8 +130,13 @@ def _load_excel_overrides(path: str | None) -> dict:
         **_MACROS_OVERRIDEABLE,
     }
 
-    sheet_name = wb.sheetnames[0]  # always use the first (and only) sheet
-    ws = wb[sheet_name]
+    if CONFIG_OVERRIDES_SHEET not in wb.sheetnames:
+        logger.warning("Sheet '%s' not found in %s – using hardcoded defaults.",
+                       CONFIG_OVERRIDES_SHEET, path)
+        wb.close()
+        return {}
+
+    ws = wb[CONFIG_OVERRIDES_SHEET]
     rows = list(ws.iter_rows(values_only=True))
     wb.close()
 
@@ -182,15 +187,11 @@ PIPELINE_MACROS = {**_PIPELINE_MACROS_DEFAULTS, **{k: v for k, v in _overrides.i
 _macros_overrides = {k: v for k, v in _overrides.items() if k in _MACROS_OVERRIDEABLE}
 
 # ---------------------------------------------------------------------------
-# DATABASE / REPOSITORY PATHS  (change to match your environment)
+# DATABASE PATHS  (only used when pull_tables_from_db == 1; the orchestrated
+# run supplies data in-memory from ranking-inputs-compiled.xlsx and never
+# reads a local repository file).
 # ---------------------------------------------------------------------------
 DB_CONFIG = {
-    "repository_entry": os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "..",
-        "Python-Inputs",
-        "parameterization-ranking-data.xlsx"
-    ),
     "model_id": 520,
     "tag_prefix": "un.olf%",
     "output_table": "dbo.Furnace_Output",

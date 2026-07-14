@@ -47,7 +47,7 @@ logger.info(f"EXPANDED TPM SHAPE: {expanded_tpm.shape}")
 output_db_to_wide = _load("output_db_to_wide", "01-pre-processing/output-db-to-wide.py")
 _KPI_DB       = os.path.join(_INPUTS, "KPI_DB.json")
 _WIDE_SHEET   = "wide-from-kpi-db"
-_WIDE_TS      = "2026-01-12 00:00:00"   # static target timestamp (Jan-12 batch)
+_WIDE_TS      = "2026-01-12 01:00:00"   # static target timestamp (Jan-12 batch)
 wide_from_db = output_db_to_wide.run_output_db_to_wide(
     json_path      = _KPI_DB,
     compiled_path  = _COMPILED,
@@ -125,7 +125,7 @@ try:
     )
 
     final_result = case_main.run_pipeline(input_df=common_result)
-    _run_stamp  = datetime.now().strftime("%H-%M-%S")                 # current run time
+    _run_stamp  = datetime.now().strftime("%d-%m_%H-%M-%S")           # current run date & time (dd-mm_hh-mm-ss)
     _data_ts    = pd.to_datetime(input_df["Timestamp"].iloc[0])       # input data timestamp
     _data_stamp = _data_ts.strftime("%d-%m-%Y-%I%p")                  # date-month-year-hour AM/PM
     _out_name   = f"{_run_stamp}_ranking-final-result_{_data_stamp}.xlsx"
